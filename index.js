@@ -150,11 +150,12 @@ function GPIO_connect(pin) {        // TODO: sync up compat, split out
 }
 
 
-exports.connect = function (spi,csn) {
+exports.connect = function (spi,ce) {
   var nrf = {},
       spi = SPI.initialize(spi),
-      csn = GPIO_connect(csn);
+      ce = GPIO_connect(ce);
   
+  ce.mode('low');
   
   nrf.getStates = function (cb) {
       
