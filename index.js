@@ -1,5 +1,20 @@
 var SPI = require('pi-spi');
 
+function _b(v) { return parseInt(v.replace(' ',''),2); }
+
+var COMMANDS = {
+    R_REGISTER:     _b('0000 0000'),
+    W_REGISTER:     _b('0010 0000'),
+    R_RX_PAYLOAD:   _b('0110 0001'),
+    W_TX_PAYLOAD:   _b('1010 0000'),
+    FLUSH_TX:       _b('1110 0001'),
+    FLUSH_RX:       _b('1110 0010'),
+    REUSE_TX_PL:    _b('1110 0011'),
+    R_RX_PL_WID:    _b('0110 0000'),
+    W_ACK_PAYLOAD:  _b('1010 1000'),
+    W_TX_PD_NOACK:  _b('1011 0000'),
+    NOP:            _b('1111 1111')
+}
 
 
 var REGISTER_MAP = {
