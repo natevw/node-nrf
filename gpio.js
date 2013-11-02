@@ -26,9 +26,9 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         var v = Buffer(1);
         if (!arguments.length) {
             fs.readSync(fd, v,0,1, 0);
-            return (v[0] === '1') ? true : false;
+            return (v[0] === '1'.charCodeAt(0)) ? true : false;
         } else {
-            v[0] = (val) ? '1' : '0';
+            v[0] = (val) ? '1'.charCodeAt(0) : '0'.charCodeAt(0);
             fs.writeSync(fd, v,0,1, 0);
         }
     }
