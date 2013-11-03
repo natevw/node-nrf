@@ -15,8 +15,7 @@ var COMMANDS = {
     W_ACK_PAYLOAD:  _b('1010 1000'),
     W_TX_PD_NOACK:  _b('1011 0000'),
     NOP:            _b('1111 1111')
-}
-
+};
 
 var REGISTER_MAP = {
     // mnemonic    addr,bit[,width]
@@ -112,12 +111,6 @@ exports.connect = function (spi,ce) {
   nrf.getStates = function (cb) {
       
   };
-  
-  
-  // see "Sysfs Interface for Userspace" in
-  // https://www.kernel.org/doc/Documentation/gpio.txt
-  
-  
   
   // expose:
   // - low level interface (getStates, setStates, etc.)

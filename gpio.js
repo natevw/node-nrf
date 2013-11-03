@@ -1,5 +1,7 @@
 var fs = require('fs');
 
+// see "Sysfs Interface for Userspace" in
+// https://www.kernel.org/doc/Documentation/gpio.txt
 
 /*
 var pin1 = require("./gpio").connect(17),
