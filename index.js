@@ -111,13 +111,13 @@ exports.connect = function (spi,ce) {
     nrf.getStates = function (list, cb) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
-            var _r = REGISTER_MAP[mnem][0];
+            var _r = REGISTER_MAP[mnem];
             registersNeeded[_r[0]] = (_r[2] / 8 >> 0) || 1;
         });
         Object.keys(registersNeeded).forEach(function (reg) {
             var command = COMMANDS.R_REGISTER | reg;
-            spi.transfer(Buffer([command]), registersNeeded[reg], function (e,d) {
-                console.log(reg, "says", d);
+            spi.transfer(Buffer([command]), 1+registersNeeded[reg], function (e,d) {
+                console.log(reg, "says", d/*.slice(1)*/);
             });
         });
     };
