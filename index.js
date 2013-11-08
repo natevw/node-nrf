@@ -102,21 +102,23 @@ var REGISTER_MAP = {
 
 
 exports.connect = function (spi,ce) {
-  var nrf = {},
-      spi = SPI.initialize(spi),
-      ce = GPIO.connect(ce);
-  
-  ce.mode('low');
-  
-  nrf.getStates = function (cb) {
-      
-  };
-  
-  // expose:
-  // - low level interface (getStates, setStates, etc.)
-  // - mid level interface (rx channels and params)
-  // - high level PRX (addrs)
-  // - high level PTX (addr)
-  
-  return nrf;
+    var nrf = {},
+        spi = SPI.initialize(spi),
+        ce = GPIO.connect(ce);
+
+    ce.mode('low');
+
+    nrf.getStates = function (cb) {
+        spi.transfer(Buffer([COMMANDS.R_REGISTER]), 5, function (e,d) {
+            console.log("first 5:",d);
+        });
+    };
+
+    // expose:
+    // - low level interface (getStates, setStates, etc.)
+    // - mid level interface (rx channels and params)
+    // - high level PRX (addrs)
+    // - high level PTX (addr)
+
+    return nrf;
 }
