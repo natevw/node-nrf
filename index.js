@@ -105,20 +105,28 @@ exports.connect = function (spi,ce) {
     var nrf = {},
         spi = SPI.initialize(spi),
         ce = GPIO.connect(ce);
-
+    
     ce.mode('low');
-
-    nrf.getStates = function (cb) {
-        spi.transfer(Buffer([COMMANDS.R_REGISTER]), 5, function (e,d) {
-            console.log("first 5:",d);
+    
+    nrf.getStates = function (list, cb) {
+        var registersNeeded = Object.create(null);
+        list.forEach(function (mnem) {
+            var _r = REGISTER_MAP[mnem][0];
+            registersNeeded[_r[0]] = (_r[2] / 8 >> 0) || 1;
+        });
+        Object.keys(registersNeeded).forEach(function (reg) {
+            var command = COMMANDS.R_REGISTER | reg;
+            spi.transfer(Buffer([command]), registersNeeded[reg], function (e,d) {
+                console.log(reg, "says", d);
+            });
         });
     };
-
+    
     // expose:
     // - low level interface (getStates, setStates, etc.)
     // - mid level interface (rx channels and params)
     // - high level PRX (addrs)
     // - high level PTX (addr)
-
+    
     return nrf;
 }
