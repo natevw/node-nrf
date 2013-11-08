@@ -111,15 +111,32 @@ exports.connect = function (spi,ce) {
     nrf.getStates = function (list, cb) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
-            var _r = REGISTER_MAP[mnem];
-            registersNeeded[_r[0]] = (_r[2] / 8 >> 0) || 1;
+            var _r = REGISTER_MAP[mnem],
+                i = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
+            i.len = (_r[2] / 8 >> 0) || 1;
+            i.arr.push(mnem);
         });
+        
+        var results = Object.create(null);
         Object.keys(registersNeeded).forEach(function (reg) {
-            var command = COMMANDS.R_REGISTER | reg;
-            spi.transfer(Buffer([command]), 1+registersNeeded[reg], function (e,d) {
+            var command = COMMANDS.R_REGISTER | reg
+                i = registersNeeded[reg];
+            spi.transfer(Buffer([command]), 1+i.len, function (e,d) {
                 console.log(reg, "says", d/*.slice(1)*/);
+                if (i.len > 1) {
+                    results[i.arr[0]] = d.slice(1);
+                } else i.arr.forEach(function (mnem) {
+                    var _r = REGISTER_MAP[mnem],
+                        howManyBits = _r[2] || 1,
+                        rightmostBit = _r[1],
+                        mask = 0xFF >> (8 - howManyBits) << rightmostBit;
+                    results[mnem] = (d[1] & mask) >> rightmostBit;
+                });
             });
         });
+        setTimeout(function () {            // HACK: temporary workaround for missing queue helper
+            cb(null,results);
+        }, 500);
     };
     
     // expose:
