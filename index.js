@@ -137,7 +137,7 @@ exports.connect = function (spi,ce) {
         list.forEach(function (mnem) {
             var _r = REGISTER_MAP[mnem];
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
-            if (_r.length === 1) r.push(0,8);
+            if (_r.length === 1) _r.push(0,8);
             
             var reg = _r[0],
                 howManyBits = _r[2] || 1,
