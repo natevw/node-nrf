@@ -138,8 +138,9 @@ exports.connect = function (spi,ce) {
     function maskForMnemonic(mnem) {
         var _r = REGISTER_MAP[mnem],
             howManyBits = _r[2] || 1,
-            rightmostBit = _r[1];
-        return 0xFF >> (8 - howManyBits) << rightmostBit;
+            rightmostBit = _r[1],
+            mask = 0xFF >> (8 - howManyBits) << rightmostBit;
+        return {mask:mask, rightmostBit:rightmostBit};
     }
     
     nrf.getStates = function (list, cb) {
@@ -152,7 +153,8 @@ exports.connect = function (spi,ce) {
                 if (e) /* fall through */;
                 else if (iq.solo) states[iq.solo] = d.slice(1);
                 else iq.arr.forEach(function (mnem) {
-                    states[mnem] = (d[1] & maskForMnemonic(mnem)) >> rightmostBit;
+                    var m = maskForMnemonic(mnem);
+                    states[mnem] = (d[1] & m.mask) >> m.rightmostBit;
                 });
                 cb(e);
             });
@@ -179,7 +181,8 @@ exports.connect = function (spi,ce) {
                 if (e) return cb(e);
                 d[0] = COMMANDS.W_REGISTER|reg;     // we reuse read buffer for writing
                 iq.arr.forEach(function (mnem) {
-                    d[1] = (vals[mnem] << rightmostBit) & maskForMnemonic(mnem);
+                    var m = maskForMnemonic(mnem);
+                    d[1] = (vals[mnem] << m.rightmostBit) & m.mask;
                 });
                 spi.write(d, cb);
             });
