@@ -125,7 +125,7 @@ exports.connect = function (spi,ce) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
             var _r = REGISTER_MAP[mnem];
-            if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem"'!");
+            if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
             
             var inq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
             inq.len = (_r[2] / 8 >> 0) || 1;
