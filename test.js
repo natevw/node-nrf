@@ -19,10 +19,10 @@ function printDetails() {
     console.log("SPI device:\t",spiDev);
     console.log("SPI speed:\t",'?');
     console.log("CE GPIO:\t",cePin);
+    // TODO: status!
     nrf24.getStates(['RX_ADDR_P0','RX_ADDR_P1','RX_ADDR_P2','RX_ADDR_P3','RX_ADDR_P4','RX_ADDR_P5','TX_ADDR'], function (e,d) {
         if (e) throw e;
-        console.log("RX_ADDR_P0:\t",_h(d.RX_ADDR_P0));
-        console.log("RX_ADDR_P1:\t",_h(d.RX_ADDR_P1));
+        console.log("RX_ADDR_P0–1:\t",_h(d.RX_ADDR_P0),_h(d.RX_ADDR_P1));
         console.log("RX_ADDR_P2–5:\t",_h(d.RX_ADDR_P2),_h(d.RX_ADDR_P3),_h(d.RX_ADDR_P4),_h(d.RX_ADDR_P5));
         console.log("TX_ADDR:\t",_h(d.TX_ADDR));
         nrf24.getStates(['RX_PW_P0','RX_PW_P1','RX_PW_P2','RX_PW_P3','RX_PW_P4','RX_PW_P5'], function (e,d) {
