@@ -172,7 +172,7 @@ exports.connect = function (spi,ce) {
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
             if (iq.solo || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
                 var d = Buffer(1+iq.len),
-                    val = vals[iq.solo || inq.arr[0]];
+                    val = vals[iq.solo || iq.arr[0]];
                 d[0] = COMMANDS.W_REGISTER|reg;
                 if (Buffer.isBuffer(val)) val.copy(d, 1);
                 else d[1] = val;
