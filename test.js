@@ -46,7 +46,7 @@ function printDetails() {
         console.log("RF_SETUP:\t",_h(d.RF_SETUP));
         console.log("CONFIG:\t\t",_h(d.CONFIG));
         console.log("DYNPD/FEATURE:\t",_h(d.DYNPD),_h(d.FEATURE));
-    })
+    });
 
     // TODO:
     "Data Rate"

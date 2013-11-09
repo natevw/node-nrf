@@ -196,7 +196,8 @@ exports.connect = function (spi,ce) {
                 d[0] = COMMANDS.W_REGISTER|reg;     // we reuse read buffer for writing
                 iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
-                    d[1] = (vals[mnem] << m.rightmostBit) & m.mask;
+                    d[1] &= ~m.mask;        // clear current value
+                    d[1] |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
                 spi.write(d, cb);
             });
