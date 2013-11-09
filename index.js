@@ -161,16 +161,16 @@ exports.connect = function (spi,ce) {
         var registersNeeded = registersForMnemonics(list),
             states = Object.create(null);
         function processInquiryForRegister(reg, cb) {
+            // TODO: d[0] always has register 0x07 but we're not optimizing for that
             var iq = registersNeeded[reg];
             spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), 1+iq.len, function (e,d) {
-                // TODO: d[0] always has register 0x07 but we're not optimizing for that
-                if (e) /* fall through */;
-                else if (iq.solo) states[iq.solo] = d.slice(1);
-                else iq.arr.forEach(function (mnem) {
+                if (e) return cb(e);
+                iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
                     states[mnem] = (d[1] & m.mask) >> m.rightmostBit;
                 });
-                cb(e);
+                if (iq.solo) states[iq.solo] = d.slice(1);
+                cb();
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
