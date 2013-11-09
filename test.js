@@ -20,7 +20,7 @@ function printDetails() {
     console.log("SPI speed:\t",'?');
     console.log("CE GPIO:\t",cePin);
     
-    function _h(n) { return (Buffer.isBuffer(n)) ? n.toString('hex') : n.toString(16); }
+    function _h(n) { return (Buffer.isBuffer(n)) ? '0x'+n.toString('hex') : '0x'+n.toString(16); }
     
     nrf24.getStates(['RX_ADDR_P0','RX_ADDR_P1','RX_ADDR_P2','RX_ADDR_P3','RX_ADDR_P4','RX_ADDR_P5','TX_ADDR'], function (e,d) {
         if (e) console.error("Error communicating with transceiver:",e);
