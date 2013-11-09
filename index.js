@@ -101,6 +101,18 @@ var REGISTER_MAP = {
 };
 
 
+function forEachWithCB(fn, cb) {
+    var i = 0, len = this.length;
+    (function proceed() {
+        if (i === len) cb(null);
+        else fn(this[i++], function (e) {
+            if (e) cb(e);
+            else proceed();
+        });
+    })();
+};
+
+
 exports.connect = function (spi,ce) {
     var nrf = {},
         spi = SPI.initialize(spi),
@@ -112,30 +124,30 @@ exports.connect = function (spi,ce) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
             var _r = REGISTER_MAP[mnem],
-                i = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
-            i.len = (_r[2] / 8 >> 0) || 1;
-            i.arr.push(mnem);
+                inq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
+            inq.len = (_r[2] / 8 >> 0) || 1;
+            inq.arr.push(mnem);
         });
         
-        var results = Object.create(null);
-        Object.keys(registersNeeded).forEach(function (reg) {
-            var command = COMMANDS.R_REGISTER | reg,
-                i = registersNeeded[reg];
-            spi.transfer(Buffer([command]), 1+i.len, function (e,d) {
-                console.log(reg, "says", d/*.slice(1)*/, i);
-                if (i.len > 1) results[i.arr[0]] = d.slice(1);
-                else i.arr.forEach(function (mnem) {
+        var states = Object.create(null);
+        function processInquiryForRegister(reg, cb) {
+            var inq = registersNeeded[reg];
+            spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), 1+inq.len, function (e,d) {
+                if (e) /* fall through */;
+                else if (inq.len > 1) states[inq.arr[0]] = d.slice(1);
+                else inq.arr.forEach(function (mnem) {
                     var _r = REGISTER_MAP[mnem],
                         howManyBits = _r[2] || 1,
                         rightmostBit = _r[1],
                         mask = 0xFF >> (8 - howManyBits) << rightmostBit;
-                    results[mnem] = (d[1] & mask) >> rightmostBit;
+                    states[mnem] = (d[1] & mask) >> rightmostBit;
                 });
+                cb(e);
             });
+        }
+        forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
+            cb(e,states);
         });
-        setTimeout(function () {            // HACK: temporary workaround for missing queue helper
-            cb(null,results);
-        }, 500);
     };
     
     // expose:
