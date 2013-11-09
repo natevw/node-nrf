@@ -136,6 +136,7 @@ exports.connect = function (spi,ce) {
         function processInquiryForRegister(reg, cb) {
             var inq = registersNeeded[reg];
             spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), 1+inq.len, function (e,d) {
+                // TODO: d[0] always has register 0x07 but we're not optimizing for that
                 if (e) /* fall through */;
                 else if (inq.len > 1) states[inq.arr[0]] = d.slice(1);
                 else inq.arr.forEach(function (mnem) {
