@@ -168,7 +168,7 @@ exports.connect = function (spi,ce) {
             var iq = registersNeeded[reg];
             // if a register is "full" we can simply overwrite, otherwise we must read+merge
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
-            if (iq.solo || iq.arr[0]==='RF_CH' || inq.arr[0].indexOf('RX_PW_P')===0) {
+            if (iq.solo || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
                 var d = Buffer(1+iq.len),
                     val = vals[iq.solo];
                 d[0] = COMMANDS.W_REGISTER|reg;
