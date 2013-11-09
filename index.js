@@ -20,6 +20,7 @@ var COMMANDS = {
 var REGISTER_MAP = {
     // mnemonic    addr,bit[,width]
 /* CONFIG */
+    CONFIG:         [0x00],
     MASK_RX_DR:     [0x00,6],
     MASK_TX_DS:     [0x00,5],
     MASK_MAX_RT:    [0x00,4],
@@ -28,6 +29,7 @@ var REGISTER_MAP = {
     PWR_UP:         [0x00,1],
     PRIM_RX:        [0x00,0],
 /* EN_AA */
+    EN_AA:          [0x01],
     ENAA_P5:        [0x01,5],
     ENAA_P4:        [0x01,4],
     ENAA_P3:        [0x01,3],
@@ -35,6 +37,7 @@ var REGISTER_MAP = {
     ENAA_P1:        [0x01,1],
     ENAA_P0:        [0x01,0],
 /* EN_RXADDR */
+    EN_RXADDR:      [0x02],
     ERX_P5:         [0x02,5],
     ERX_P4:         [0x02,4],
     ERX_P3:         [0x02,3],
@@ -42,13 +45,16 @@ var REGISTER_MAP = {
     ERX_P1:         [0x02,1],
     ERX_P0:         [0x02,0],
 /* SETUP_AW */
+    SETUP_AW:       [0x03],
     AW:             [0x03,0,2],
 /* SETUP_RETR */
+    SETUP_RETR:     [0x04],
     ARD:            [0x04,4,4],
     ARC:            [0x04,0,4],
 /* RF_CH */
     RF_CH:          [0x05,0,7],
 /* RF_SETUP */
+    RF_SETUP:       [0x06],
     CONT_WAVE:      [0x06,7],
     RF_DR_LOW:      [0x06,5],
     PLL_LOCK:       [0x06,4],
@@ -56,12 +62,14 @@ var REGISTER_MAP = {
     RF_PWR:         [0x06,1,2],
     LNA_HCURR:      [0x06,0],
 /* STATUS */
+    STATUS:         [0x07],
     RX_DR:          [0x07,6],
     TX_DS:          [0x07,5],
     MAX_RT:         [0x07,4],
     RX_P_NO:        [0x07,1,3],
     TX_FULL:        [0x07,0],
 /* OBSERVE_TX */
+    OBSERVE_TX:     [0x08],
     PLOS_CNT:       [0x08,4,4],
     ARC_CNT:        [0x08,0,4],
 /* RPD */
@@ -82,12 +90,14 @@ var REGISTER_MAP = {
     RX_PW_P4:       [0x15,0,6],
     RX_PW_P5:       [0x16,0,6],
 /* FIFO_STATUS */
+    FIFO_STATUS:    [0x17],
     TX_REUSE:       [0x17,6],
     TX_FULL:        [0x17,5],
     TX_EMPTY:       [0x17,4],
     RX_FULL:        [0x17,1],
     RX_EMPTY:       [0x17,0],
 /* DYNPD */
+    DYNPD:          [0x1C],
     DPL_P5:         [0x1C,5],
     DPL_P4:         [0x1C,4],
     DPL_P3:         [0x1C,3],
@@ -95,6 +105,7 @@ var REGISTER_MAP = {
     DPL_P1:         [0x1C,1],
     DPL_P0:         [0x1C,0],
 /* FEATURE */
+    FEATURE:        [0x1D],
     EN_DPL:         [0x1D,2],
     EN_ACK_PAY:     [0x1D,1],
     EN_DYN_ACK:     [0x1D,0]
@@ -126,6 +137,7 @@ exports.connect = function (spi,ce) {
         list.forEach(function (mnem) {
             var _r = REGISTER_MAP[mnem];
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
+            if (_r.length === 1) r.push(0,8);
             
             var reg = _r[0],
                 howManyBits = _r[2] || 1,
