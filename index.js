@@ -65,7 +65,7 @@ var REGISTER_MAP = {
     PLOS_CNT:       [0x08,4,4],
     ARC_CNT:        [0x08,0,4],
 /* RPD */
-    RPD:            [0x09,0,0],
+    RPD:            [0x09,0],
 /* ADDR */
     RX_ADDR_P0:     [0x0A,0,40],
     RX_ADDR_P1:     [0x0B,0,40],
