@@ -31,7 +31,6 @@ function printDetails() {
     });
     
     nrf24.getStates(['RX_PW_P0','RX_PW_P1','RX_PW_P2','RX_PW_P3','RX_PW_P4','RX_PW_P5'], function (e,d) {
-        if (e) throw e;
         console.log("RX_PW_P0–5:\t",
             _h(d.RX_PW_P0),_h(d.RX_PW_P1),_h(d.RX_PW_P2),
             _h(d.RX_PW_P3),_h(d.RX_PW_P4),_h(d.RX_PW_P5)
@@ -39,7 +38,6 @@ function printDetails() {
     });
     
     nrf24.getStates(['EN_AA','EN_RXADDR','RF_CH','RF_SETUP','CONFIG','DYNPD','FEATURE'], function (e,d) {
-        if (e) throw e;
         console.log("EN_AA:\t\t",_h(d.EN_AA));
         console.log("EN_RXADDR:\t",_h(d.EN_RXADDR));
         console.log("RF_CH:\t\t",_h(d.RF_CH));
@@ -47,12 +45,31 @@ function printDetails() {
         console.log("CONFIG:\t\t",_h(d.CONFIG));
         console.log("DYNPD/FEATURE:\t",_h(d.DYNPD),_h(d.FEATURE));
     });
-
-    // TODO:
-    "Data Rate"
-    "Model"
-    "CRC Length"
-    "PA Power"
+    
+    nrf24.getStates(['RF_DR_LOW','RF_DR_HIGH','EN_CRC','CRCO','RF_PWR'], function (e,d) {
+        var isPlus = false,
+            pwrs = ('compat') ? ["PA_MIN", "PA_LOW", "PA_HIGH", "PA_MAX"] : ["-18dBm","-12dBm","-6dBm","0dBm"];
+        function logFinalDetails() {
+            console.log("Data Rate:\t", (d.RF_DR_LOW) ? "250kbps" : ((d.RF_DR_HIGH) ? "2Mbps" : "1Mbps"));
+            console.log("Model:\t", (isPlus) ? "nRF24L01+" : "nRF24L01");
+            console.log("CRC Length:\t", (d.EN_CRC) ? ((d.CRCO) ? "16 bits" : "8 bits") : "Disabled");
+            console.log("PA Power:\t", pwrs[d.RF_PWR]);
+        }
+        if (d.RF_DR_LOW) {      // if set, we already know and don't need to check by toggling
+            isPlus = true;
+            logFinalDetails();
+        } else nrf24.setStates({RF_DR_LOW:true}, function () {
+            nrf24.getStates(['RF_DR_LOW'], function (e,d2) {
+                // (non-plus chips hold this bit zero even after settting)
+                if (d2.RF_DR_LOW) isPlus = true;
+                // …then set back to original (false) value again
+                nrf24.setStates({RF_DR_LOW:false}, function () {
+                    logFinalDetails();
+                });
+            });
+        });
+    });
+    
 }
 printDetails();
 
