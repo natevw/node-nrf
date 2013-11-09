@@ -102,10 +102,11 @@ var REGISTER_MAP = {
 
 
 function forEachWithCB(fn, cb) {
-    var i = 0, len = this.length;
+    var arr = this,
+        i = 0, len = arr.length;
     (function proceed() {
         if (i === len) cb(null);
-        else fn(this[i++], function (e) {
+        else fn(arr[i++], function (e) {
             if (e) cb(e);
             else proceed();
         });
