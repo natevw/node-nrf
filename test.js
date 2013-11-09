@@ -51,7 +51,7 @@ function printDetails() {
             pwrs = ('compat') ? ["PA_MIN", "PA_LOW", "PA_HIGH", "PA_MAX"] : ["-18dBm","-12dBm","-6dBm","0dBm"];
         function logFinalDetails() {
             console.log("Data Rate:\t", (d.RF_DR_LOW) ? "250kbps" : ((d.RF_DR_HIGH) ? "2Mbps" : "1Mbps"));
-            console.log("Model:\t", (isPlus) ? "nRF24L01+" : "nRF24L01");
+            console.log("Model:\t\t", (isPlus) ? "nRF24L01+" : "nRF24L01");
             console.log("CRC Length:\t", (d.EN_CRC) ? ((d.CRCO) ? "16 bits" : "8 bits") : "Disabled");
             console.log("PA Power:\t", pwrs[d.RF_PWR]);
         }
