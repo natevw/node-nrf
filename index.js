@@ -124,8 +124,10 @@ exports.connect = function (spi,ce) {
     nrf.getStates = function (list, cb) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
-            var _r = REGISTER_MAP[mnem],
-                inq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
+            var _r = REGISTER_MAP[mnem];
+            if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem"'!");
+            
+            var inq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
             inq.len = (_r[2] / 8 >> 0) || 1;
             inq.arr.push(mnem);
         });
