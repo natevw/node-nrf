@@ -121,30 +121,38 @@ exports.connect = function (spi,ce) {
     
     ce.mode('low');
     
-    nrf.getStates = function (list, cb) {
+    function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
             var _r = REGISTER_MAP[mnem];
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
             
-            var inq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
-            inq.len = (_r[2] / 8 >> 0) || 1;
-            inq.arr.push(mnem);
+            var iq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
+            iq.len = (_r[2]||1 / 8 >> 0) || 1;
+            if (_r[2]||1 < 8) iq.arr.push(mnem);
+            else iq.solo = mnem;
         });
-        
-        var states = Object.create(null);
+        return registersNeeded;
+    }
+    
+    function maskForMnemonic(mnem) {
+        var _r = REGISTER_MAP[mnem],
+            howManyBits = _r[2] || 1,
+            rightmostBit = _r[1];
+        return 0xFF >> (8 - howManyBits) << rightmostBit;
+    }
+    
+    nrf.getStates = function (list, cb) {
+        var registersNeeded = registersForMnemonics(list),
+            states = Object.create(null);
         function processInquiryForRegister(reg, cb) {
-            var inq = registersNeeded[reg];
-            spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), 1+inq.len, function (e,d) {
+            var iq = registersNeeded[reg];
+            spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), 1+iq.len, function (e,d) {
                 // TODO: d[0] always has register 0x07 but we're not optimizing for that
                 if (e) /* fall through */;
-                else if (inq.len > 1) states[inq.arr[0]] = d.slice(1);
-                else inq.arr.forEach(function (mnem) {
-                    var _r = REGISTER_MAP[mnem],
-                        howManyBits = _r[2] || 1,
-                        rightmostBit = _r[1],
-                        mask = 0xFF >> (8 - howManyBits) << rightmostBit;
-                    states[mnem] = (d[1] & mask) >> rightmostBit;
+                else if (iq.solo) states[iq.solo] = d.slice(1);
+                else iq.arr.forEach(function (mnem) {
+                    states[mnem] = (d[1] & maskForMnemonic(mnem)) >> rightmostBit;
                 });
                 cb(e);
             });
@@ -152,6 +160,31 @@ exports.connect = function (spi,ce) {
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
             cb(e,states);
         });
+    };
+    
+    nrf.setStates = function (vals, cb) {
+        var registersNeeded = registersForMnemonics(Object.keys(vals));
+        function processInquiryForRegister(reg, cb) {
+            var iq = registersNeeded[reg];
+            // if a register is "full" we can simply overwrite, otherwise we must read+merge
+            // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
+            if (iq.solo || iq.arr[0]==='RF_CH' || inq.arr[0].indexOf('RX_PW_P')===0) {
+                var d = Buffer(1+iq.len),
+                    val = vals[iq.solo];
+                d[0] = COMMANDS.W_REGISTER|reg;
+                if (Buffer.isBuffer(val)) val.copy(d, 1);
+                else d[1] = val;
+                spi.write(d, cb);
+            } else spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), /*1+iq.len*/2, function (e,d) {
+                if (e) return cb(e);
+                d[0] = COMMANDS.W_REGISTER|reg;     // we reuse read buffer for writing
+                iq.arr.forEach(function (mnem) {
+                    d[1] = (vals[mnem] << rightmostBit) & maskForMnemonic(mnem);
+                });
+                spi.write(d, cb);
+            });
+        }
+        forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
     };
     
     // expose:
