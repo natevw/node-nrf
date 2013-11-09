@@ -127,9 +127,11 @@ exports.connect = function (spi,ce) {
             var _r = REGISTER_MAP[mnem];
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
             
-            var iq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
-            iq.len = (_r[2] / 8 >> 0) || 1;
-            if (_r[2]||1 < 8) iq.arr.push(mnem);
+            var reg = _r[0],
+                howManyBits = _r[2] || 1,
+                iq = registersNeeded[reg] || (registersNeeded[reg] = {arr:[]});
+            iq.len = (howManyBits / 8 >> 0) || 1;
+            if (howManyBits < 8) iq.arr.push(mnem);
             else iq.solo = mnem;
         });
         return registersNeeded;
