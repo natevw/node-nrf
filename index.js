@@ -128,7 +128,7 @@ exports.connect = function (spi,ce) {
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
             
             var iq = registersNeeded[_r[0]] || (registersNeeded[_r[0]] = {arr:[]});
-            iq.len = (_r[2]||1 / 8 >> 0) || 1;
+            iq.len = (_r[2] / 8 >> 0) || 1;
             if (_r[2]||1 < 8) iq.arr.push(mnem);
             else iq.solo = mnem;
         });
@@ -172,7 +172,7 @@ exports.connect = function (spi,ce) {
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
             if (iq.solo || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
                 var d = Buffer(1+iq.len),
-                    val = vals[iq.solo];
+                    val = vals[iq.solo || inq.arr[0]];
                 d[0] = COMMANDS.W_REGISTER|reg;
                 if (Buffer.isBuffer(val)) val.copy(d, 1);
                 else d[1] = val;
