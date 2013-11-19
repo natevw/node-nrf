@@ -113,6 +113,9 @@ exports.connect = function (spi,ce) {
     PTX.prototype._write = function (buff, _enc, cb) {
         // TODO: handle shared transmissions (via stack?)
         // TODO: don't set RX_ADDR_P0 if simplex/no-ack
+        if (buff.length > 32) return process.nextTick(function () {
+            cb(new Error("Maximum packet size exceeded. Smaller writes, Dash!"));
+        });
         nrf.setStates({TX_ADDR:this._addr, RX_ADDR_P0:this._addr}, function (e) {
             if (e) return cb(e);
             
