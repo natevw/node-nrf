@@ -1,4 +1,6 @@
-var SPI = require('pi-spi'),
+var stream = require('stream'),
+    util = require('util'),
+    SPI = require('pi-spi'),
     GPIO = require("./gpio");
 
 var COMMANDS = require("./magicnums").COMMANDS,
@@ -99,9 +101,30 @@ exports.connect = function (spi,ce) {
     
     // expose:
     // - low level interface (getStates, setStates, etc.)
-    // - mid level interface (rx channels and params)
+    // - mid level interface (channel, datarate, power, …)
     // - high level PRX (addrs)
     // - high level PTX (addr)
+    
+    function PTX(addr,opts) {
+        stream.Duplex.call(this);
+        this._addr = addr;
+    }
+    util.inherits(PTX, stream.Duplex);
+    PTX.prototype._write = function (buff, _enc, cb) {
+        // TODO: handle shared transmissions (via stack?)
+        // TODO: don't set RX_ADDR_P0 if simplex/no-ack
+        nrf.setStates({TX_ADDR:this._addr, RX_ADDR_P0:this._addr}, function (e) {
+            if (e) return cb(e);
+            
+        });
+    };
+    PTX.prototype._read = function () { /* just gives okay to read, use this.push when packet received */ };
+    
+    nrf.createTransmitStream = function (addr, opts) {
+        return new PTX(addr,opts);
+    };
+    
+    //nrf.reserveReceiveStream = function ([pipe, ]addr) {};
     
     return nrf;
 }
