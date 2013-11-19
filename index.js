@@ -18,6 +18,18 @@ function forEachWithCB(fn, cb) {
     })();
 };
 
+function setMicrotimeout(cb, us) {
+    var start = process.hrtime();
+    function check() {
+        var diff = process.hrtime(start);
+        if (diff[0] * 1e9 + diff[1] >= us*1e3) cb();
+        else setImmediate(check);
+    }
+    check();    // unqueued call may be enough, e.g. `process.hrtime(process.hrtime())[1]/1e3` often ~50µs on RaspPi!
+}
+
+//start = process.hrtime(), setMicrotimeout(function () { console.log(process.hrtime(start)[1]/1e3); }, 10)
+
 
 exports.connect = function (spi,ce) {
     var nrf = {},
@@ -108,6 +120,7 @@ exports.connect = function (spi,ce) {
     function PTX(addr,opts) {
         stream.Duplex.call(this);
         this._addr = addr;
+        this._wantsRead = false;
     }
     util.inherits(PTX, stream.Duplex);
     PTX.prototype._write = function (buff, _enc, cb) {
@@ -116,12 +129,30 @@ exports.connect = function (spi,ce) {
         if (buff.length > 32) return process.nextTick(function () {
             cb(new Error("Maximum packet size exceeded. Smaller writes, Dash!"));
         });
-        nrf.setStates({TX_ADDR:this._addr, RX_ADDR_P0:this._addr}, function (e) {
+        nrf.setStates({TX_ADDR:this._addr, RX_ADDR_P0:this._addr, PRIM_RX:false}, function (e) {
             if (e) return cb(e);
             
+            var d = Buffer(1+buff.length);
+            d[0] = COMMANDS.W_TX_PAYLOAD;
+            buff.copy(d, 1);
+            spi.write(d, function (e) {
+                if (e) return cb(e);
+                
+                ce.value(true);     // pulse for at least 10µs
+                setMicrotimeout(function () {
+                    ce.value(false);
+                    // TODO: (iff ACK expected?) wait for IRQ to signal TX_DS/MAX_RT
+                    cb(null);
+                    // BONUS: if reading and RX_DS, then R_RX_PAYLOAD
+                    //this._wantsRead = this.push(/*R_RX_PAYLOAD*/)
+                }, 10);
+            });
         });
     };
-    PTX.prototype._read = function () { /* just gives okay to read, use this.push when packet received */ };
+    PTX.prototype._read = function () {
+        /* just gives okay to read, use this.push when packet received */
+        this._wantsRead = true;
+    };
     
     nrf.createTransmitStream = function (addr, opts) {
         return new PTX(addr,opts);
