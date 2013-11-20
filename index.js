@@ -1,10 +1,12 @@
 var stream = require('stream'),
     util = require('util'),
+    events = require('events'),
     SPI = require('pi-spi'),
     GPIO = require("./gpio");
 
 var COMMANDS = require("./magicnums").COMMANDS,
-    REGISTER_MAP = require("./magicnums").REGISTER_MAP;
+    REGISTER_MAP = require("./magicnums").REGISTER_MAP,
+    REGISTER_DEFAULTS = require("./magicnums").REGISTER_DEFAULTS;
 
 function forEachWithCB(fn, cb) {
     var arr = this,
@@ -33,10 +35,9 @@ function setMicrotimeout(cb, us) {
 
 exports.connect = function (spi,ce) {
     var nrf = {},
+        evt = new events.EventEmmitter(),
         spi = SPI.initialize(spi),
         ce = GPIO.connect(ce);
-    
-    ce.mode('low');
     
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
@@ -141,6 +142,10 @@ exports.connect = function (spi,ce) {
                 ce.value(true);     // pulse for at least 10µs
                 setMicrotimeout(function () {
                     ce.value(false);
+                    
+                    evt.on('TX_DS', function () {});
+                    evt.on('MAX_RT', function () {});
+                    
                     // TODO: (iff ACK expected?) wait for IRQ to signal TX_DS/MAX_RT
                     cb(null);
                     // BONUS: if reading and RX_DS, then R_RX_PAYLOAD
@@ -159,6 +164,18 @@ exports.connect = function (spi,ce) {
     };
     
     //nrf.reserveReceiveStream = function ([pipe, ]addr) {};
+    
+    
+    nrf.begin = function (cb) {
+        ce.mode('low');
+        
+        // TODO: also flush FIFOs
+        nrf.setStates(REGISTER_DEFAULTS, function () {
+            // TODO: how to handle this async setup? (make user call .begin/prepare/reset method before use?)
+        });
+    }
+    
+    
     
     return nrf;
 }

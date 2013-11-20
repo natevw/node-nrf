@@ -107,3 +107,23 @@ exports.REGISTER_MAP = {
     EN_ACK_PAY:     [0x1D,1],
     EN_DYN_ACK:     [0x1D,0]
 };
+
+exports.REGISTER_DEFAULTS = {
+    CONFIG:     _b('0000 1000'),
+    EN_AA:      _b('0011 1111'),
+    EN_RXADDR:  _b('0000 0011'),
+    SETUP_AW:   _b('0000 0011'),
+    SETUP_RETR: _b('0000 0011'),
+    RF_CH:      _b('0000 0010'),
+    RF_SETUP:   _b('0000 1110'),
+    STATUS:     _b('0111 1110'),
+    RX_ADDR_P0: Buffer("E7E7E7E7E7", 'hex'),
+    RX_ADDR_P1: Buffer("C2C2C2C2C2", 'hex'),
+    RX_ADDR_P2: 0xC3,
+    RX_ADDR_P3: 0xC4,
+    RX_ADDR_P4: 0xC5,
+    RX_ADDR_P5: 0xC6,
+    TX_ADDR:    Buffer("E7E7E7E7E7", 'hex'),
+    DYNPD:      _b('0000 0000'),
+    FEATURE:    _b('0000 0000'),
+};
