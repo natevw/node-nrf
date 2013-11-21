@@ -199,7 +199,10 @@ exports.connect = function (spi,ce,irq) {
         spi.write(Buffer([COMMANDS[cmd]]), cb);
     };
     nrf.getStatus = function (cb) {
-        nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO','TX_FULL'],cb);
+        nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO','TX_FULL'], function (e,d) {
+            if (d) d.IRQ = irq.value();
+            cb(e,d);
+        });
     }
     //setInterval(nrf.getStatus.bind(null, function (e,d) { console.log("STATUS", e, d); }), 5000);
     
