@@ -190,9 +190,12 @@ exports.connect = function (spi,ce,irq) {
             .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}))
         .await(cb);
         
-        if (irq) irq.on('both', function (v) {
-            console.log("IRQ triggered", v);
-        });
+        if (irq) {
+            irq.mode('in');
+            irq.on('both', function (v) {
+                console.log("IRQ triggered", v);
+            });
+        }
     }
     
     nrf.execCommand = function (cmd, cb) {
