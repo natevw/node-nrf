@@ -35,7 +35,7 @@ function setMicrotimeout(cb, us) {
 
 exports.connect = function (spi,ce) {
     var nrf = {},
-        evt = new events.EventEmmitter(),
+        evt = new events.EventEmitter(),
         spi = SPI.initialize(spi),
         ce = GPIO.connect(ce);
     
