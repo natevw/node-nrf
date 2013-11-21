@@ -60,7 +60,9 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         
         if (bl || rl || fl) {
             if (!watcher) watcher = fs.watch(pinPath+"/value", {persistent:false}, function () {
-                console.log("CHANGE", arguments, gpio.value());
+                var v = gpio.value();
+                gpio.emit((v) ? 'rise' : 'fall', v);
+                gpio.emit('both', v);
             });
         } else if (watcher) {
             watcher.close();
