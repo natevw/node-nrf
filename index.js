@@ -149,8 +149,7 @@ exports.connect = function (spi,ce,irq) {
         var acking = true,
             states = {TX_ADDR:this._addr, PRIM_RX:false};
         if (acking) states.RX_ADDR_P0 = states.TX_ADDR;
-        
-        nrf.setStates(, function (e) {
+        nrf.setStates(states, function (e) {
             if (e) return cb(e);
             
             var d = Buffer(1+buff.length);
