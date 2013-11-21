@@ -58,8 +58,7 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         else fs.writeFileSync(pinPath+"/edge", 'none');
         
         if (bl || rl || fl) {
-            // TODO: if sticking with fs.watchFile works, need to fix up logic to handle its actual API!
-            if (!watcher && 0) watcher = fs.watchFile(pinPath+"/value", {persistent:false, interval:0}, function () {
+            if (!watcher) watcher = fs.watch(pinPath+"/value", {persistent:false}, function () {
                 var v = gpio.value();
                 gpio.emit((v) ? 'rise' : 'fall', v);
                 gpio.emit('both', v);
