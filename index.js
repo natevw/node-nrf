@@ -151,22 +151,34 @@ exports.connect = function (spi,ce,irq) {
         if (acking) states.RX_ADDR_P0 = states.TX_ADDR;
         nrf.setStates(states, function (e) {
             if (e) return cb(e);
-            
             var d = Buffer(1+buff.length);
             d[0] = COMMANDS.W_TX_PAYLOAD;
             buff.copy(d, 1);
             spi.write(d, function (e) {
                 if (e) return cb(e);
-                
                 nrf.pulseCE();
-                if (acking) {
-                    // TODO: (iff ACK expected?) wait for IRQ to signal TX_DS/MAX_RT
-                    evt.on('TX_DS', function () {});
-                    evt.on('MAX_RT', function () {});
-                    
-                    // BONUS: if reading and RX_DS, then R_RX_PAYLOAD
-                    //this._wantsRead = this.push(/*R_RX_PAYLOAD*/)
-                } else cb(null);
+                if (acking) evt.once('interrupt', function () {
+                    nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO'], function (e,d) {
+                        if (e) return cb(e);
+                        if (d.MAX_RT) finish(new Error("Packet timeout."));
+                        else if (d.RX_DR && d.RX_P_NO === 0) {      // got ACK payload
+                            // NOTE: we ignore this._wantsRead, prefering to buffer rather than drop
+                            nrf.getStates(['RX_PW_P0'], function (e,d) {
+                                if (e) return finish(e);
+                                spi.transfer(Buffer([COMMANDS.R_RX_PAYLOAD]), 1+d.RX_PW_P0, function (e,d) {
+                                    if (e) return finish(e);
+                                    this._wantsRead = this.push(d);
+                                });
+                            });
+                        } else finish(null);
+                        function finish(e) {        // clear interrupt and call back
+                            delete d.RX_P_NO;
+                            nrf.setStates(d, function () {
+                                cb(e);
+                            });
+                        }
+                    });
+                }); else cb(null);
             });
         });
     };
@@ -192,9 +204,10 @@ exports.connect = function (spi,ce,irq) {
         
         if (irq) {
             irq.mode('in');
-            irq.on('both', function (v) {
-                console.log("IRQ triggered", v);
-            });
+            irq.on('fall', function (v) { evt.emit('interrupt'); });
+        } else {
+            // TODO: what? poll status ourselves?
+            throw new Error("Must be used with IRQ pin until fallback handling is added.");
         }
     }
     
@@ -207,7 +220,6 @@ exports.connect = function (spi,ce,irq) {
             cb(e,d);
         });
     }
-    //setInterval(nrf.getStatus.bind(null, function (e,d) { console.log("STATUS", e, d); }), 5000);
     
     return nrf;
 }
