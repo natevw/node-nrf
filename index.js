@@ -110,7 +110,7 @@ exports.connect = function (spi,ce) {
             } else spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), /*1+iq.len*/2, function (e,d) {
                 if (e) return cb(e);
                 d[0] = COMMANDS.W_REGISTER|reg;     // we reuse read buffer for writing
-                d[1] = (iq.solo) ? vals[iq.solo] : 0;
+                if (iq.solo) d[1] = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
                     d[1] &= ~m.mask;        // clear current value
