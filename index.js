@@ -184,7 +184,7 @@ console.log("calling _write's cb");
         q(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
-            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}));
+            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}))
         .await(cb);
     }
     
