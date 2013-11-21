@@ -52,18 +52,26 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         gpio.emit((v) ? 'rise' : 'fall', v);
         gpio.emit('both', v);
     }), watching = false;
-    gpio.on('newListener', updateListening);
-    gpio.on('removeListener', updateListening);
-    function updateListening() {
-        var bl = gpio.listeners('both').length,
-            rl = gpio.listeners('rise').length,
-            fl = gpio.listeners('fall').length;
-        if (bl || (rl && fl)) fs.writeFileSync(pinPath+"/edge", 'both');
-        else if (rl) fs.writeFileSync(pinPath+"/edge", 'rising');
-        else if (fl) fs.writeFileSync(pinPath+"/edge", 'falling');
+    gpio.on('newListener', updateListening.bind(null, '+'));
+    gpio.on('removeListener', updateListening.bind(null, '-'));
+    function updateListening(which, name, fn) {
+        var l = {};
+        ['both', 'rise', 'fall'].forEach(function (k) {
+            var arr = gpio.listeners(k);
+            l[k[0]] = arr.length;
+            if (k === name) {           // need this because node.js doesn't specify up-to-date lists
+                var present = ~arr.indexOf(fn);
+                if (!present && '+') l[k[0]] += 1;
+                else if (present && '-') l[k[0]] -= 1;
+            }
+        });
+console.log("updateListening", l, arguments);
+        if (l.b || (l.r && l.f)) fs.writeFileSync(pinPath+"/edge", 'both');
+        else if (l.r) fs.writeFileSync(pinPath+"/edge", 'rising');
+        else if (l.f) fs.writeFileSync(pinPath+"/edge", 'falling');
         else fs.writeFileSync(pinPath+"/edge", 'none');
         
-        if (bl || rl || fl) {
+        if (l.b || l.r || l.f) {
             if (!watching) {
                 watcher.add(fd, Epoll.EPOLLPRI);
                 watching = true;
