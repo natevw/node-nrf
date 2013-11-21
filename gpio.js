@@ -1,4 +1,5 @@
-var fs = require('fs');
+var fs = require('fs'),
+    events = require('events');
 
 // see "Sysfs Interface for Userspace" in
 // https://www.kernel.org/doc/Documentation/gpio.txt
@@ -26,7 +27,7 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         } else throw e;
     }
     
-    var gpio = {};
+    var gpio = new events.EventEmitter();
     
     gpio.mode = function (mode) {       // 'in','out','low','high'
         fs.writeFileSync(pinPath+"/direction", mode);
@@ -44,16 +45,28 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         }
     }
     
-    // TODO: IRQ (does fs.watch actually work as Linux poll?)
-    /*
-    var watching = false;
-    gpio.on = function (evt, cb) {      // 'rising','falling','both'
-        // TODO: maintain own listeners state and trigger on both?
-        if (watching) throw Error("Can only watch once at present, sorry.");
-        fs.writeFileSync(pinPath+"/direction", evt);
-        fs.watch(pinPath+"/value", {persistent:false}, cb);
-    };
-    */
+    // TODO: test if fs.watch actually works as Linux poll
+    var watcher = null;
+    gpio.on('newListener', updateListening);
+    gpio.on('removeListener', updateListening);
+    function updateListening() {
+        var bl = gpio.listeners('both').length,
+            rl = gpio.listeners('rise').length,
+            fl = gpio.listeners('fall').length;
+        if (bl || (rl && fl)) fs.writeFileSync(pinPath+"/edge", 'both');
+        else if (rl) fs.writeFileSync(pinPath+"/edge", 'rising');
+        else if (fl) fs.writeFileSync(pinPath+"/edge", 'falling');
+        else fs.writeFileSync(pinPath+"/edge", 'none');
+        
+        if (bl || rl || fl) {
+            if (!watcher) watcher = fs.watch(pinPath+"/value", {persistent:false}, function () {
+                console.log("CHANGE", arguments, gpio.value());
+            });
+        } else if (watcher) {
+            watcher.close();
+            watcher = null;
+        }
+    }
     
     return gpio;
 }
