@@ -21,6 +21,14 @@ function forEachWithCB(fn, cb) {
     })();
 };
 
+function _extend(obj) {
+    for (var i = 1, len = arguments.length; i < len; i++) {
+        var nxt = arguments[i];
+        Object.keys(nxt).forEach(function (k) { obj[k] = nxt[k]; });
+    }
+    return obj;
+}
+
 function setMicrotimeout(cb, us) {
     var start = process.hrtime();
     function check() {
@@ -176,7 +184,7 @@ console.log("calling _write's cb");
         q(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
-            .defer(nrf.setStates, REGISTER_DEFAULTS)
+            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}));
         .await(cb);
     }
     
