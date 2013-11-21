@@ -23,6 +23,7 @@
     "url": "https://github.com/natevw/node-nrf/issues"
   },
   "dependencies": {
-    "pi-spi": "~0.8.1"
+    "pi-spi": "~0.8.1",
+    "queue-async": "~1.0.4"
   }
 }

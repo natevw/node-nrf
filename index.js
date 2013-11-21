@@ -1,4 +1,5 @@
-var stream = require('stream'),
+var q = require('queue-async'),
+    stream = require('stream'),
     util = require('util'),
     events = require('events'),
     SPI = require('pi-spi'),
@@ -172,11 +173,11 @@ console.log("calling _write's cb");
     
     nrf.begin = function (cb) {
         ce.mode('low');
-        
-        // TODO: also flush FIFOs
-        nrf.setStates(REGISTER_DEFAULTS, function () {
-            // TODO: how to handle this async setup? (make user call .begin/prepare/reset method before use?)
-        });
+        q(1)
+            .defer(nrf.execCommand, 'FLUSH_TX')
+            .defer(nrf.execCommand, 'FLUSH_RX')
+            .defer(nrf.setStates, REGISTER_DEFAULTS)
+        .await(cb);
     }
     
     nrf.execCommand = function (cmd, cb) {
