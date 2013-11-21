@@ -175,7 +175,10 @@ exports.connect = function (spi,ce) {
         });
     }
     
-    
+    nrf.getStatus = function (cb) {
+        nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO','TX_FULL'],cb);
+    }
+    //setInterval(nrf.getStatus.bind(null, function (e,d) { console.log("STATUS", e, d); }), 5000);
     
     return nrf;
 }
