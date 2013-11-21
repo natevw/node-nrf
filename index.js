@@ -141,7 +141,6 @@ exports.connect = function (spi,ce) {
             cb(new Error("Maximum packet size exceeded. Smaller writes, Dash!"));
         });
         
-console.log("_write called, setting states");
         nrf.setStates({TX_ADDR:this._addr, RX_ADDR_P0:this._addr, PRIM_RX:false}, function (e) {
             if (e) return cb(e);
             
@@ -150,8 +149,7 @@ console.log("_write called, setting states");
             buff.copy(d, 1);
             spi.write(d, function (e) {
                 if (e) return cb(e);
-
-console.log("wrote data, pulsing ce");
+                
                 ce.value(true);     // pulse for at least 10µs
                 setMicrotimeout(function () {
                     ce.value(false);
@@ -160,7 +158,6 @@ console.log("wrote data, pulsing ce");
                     evt.on('MAX_RT', function () {});
                     
                     // TODO: (iff ACK expected?) wait for IRQ to signal TX_DS/MAX_RT
-console.log("calling _write's cb");
                     cb(null);
                     // BONUS: if reading and RX_DS, then R_RX_PAYLOAD
                     //this._wantsRead = this.push(/*R_RX_PAYLOAD*/)
