@@ -65,7 +65,7 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
                 else if (present && '-') l[k[0]] -= 1;
             }
         });
-console.log("updateListening", l, arguments);
+        
         if (l.b || (l.r && l.f)) fs.writeFileSync(pinPath+"/edge", 'both');
         else if (l.r) fs.writeFileSync(pinPath+"/edge", 'rising');
         else if (l.f) fs.writeFileSync(pinPath+"/edge", 'falling');
