@@ -179,6 +179,9 @@ console.log("calling _write's cb");
         });
     }
     
+    nrf.execCommand = function (cmd, cb) {
+        spi.write(Buffer([COMMANDS[cmd]]), cb);
+    };
     nrf.getStatus = function (cb) {
         nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO','TX_FULL'],cb);
     }
