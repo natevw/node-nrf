@@ -207,7 +207,8 @@ console.log("finishing", e);
         
         if (irq) {
             irq.mode('in');
-            irq.on('fall', function (v) { evt.emit('interrupt'); });
+            irq.on('fall', function (v) { console.log("IRQ received"); evt.emit('interrupt'); });
+            irq.on('rise', function (v) { console.log("IRQ cleared"); });
         } else {
             // TODO: what? poll status ourselves?
             throw new Error("Must be used with IRQ pin until fallback handling is added.");
