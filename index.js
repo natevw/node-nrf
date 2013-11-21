@@ -100,7 +100,7 @@ exports.connect = function (spi,ce) {
             var iq = registersNeeded[reg];
             // if a register is "full" we can simply overwrite, otherwise we must read+merge
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
-            if (iq.solo || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
+            if (!iq.arr.length || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
                 var d = Buffer(1+iq.len),
                     val = vals[iq.solo || iq.arr[0]];
                 d[0] = COMMANDS.W_REGISTER|reg;
@@ -110,6 +110,7 @@ exports.connect = function (spi,ce) {
             } else spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), /*1+iq.len*/2, function (e,d) {
                 if (e) return cb(e);
                 d[0] = COMMANDS.W_REGISTER|reg;     // we reuse read buffer for writing
+                d[1] = (iq.solo) ? vals[iq.solo] : 0;
                 iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
                     d[1] &= ~m.mask;        // clear current value
