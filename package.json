@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "pi-spi": "~0.8.1",
-    "queue-async": "~1.0.4"
+    "queue-async": "~1.0.4",
+    "epoll": "~0.1.1"
   }
 }

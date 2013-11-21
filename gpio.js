@@ -1,5 +1,8 @@
 var fs = require('fs'),
-    events = require('events');
+    events = require('events'),
+    Epoll = require('epoll').Epoll;
+
+// c.f. https://github.com/fivdi/onoff
 
 // see "Sysfs Interface for Userspace" in
 // https://www.kernel.org/doc/Documentation/gpio.txt
@@ -44,8 +47,11 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         }
     }
     
-    // TODO: test if fs.watch actually works as Linux poll
-    var watcher = null;
+    var watcher = new Epoll(function () {
+        var v = gpio.value();
+        gpio.emit((v) ? 'rise' : 'fall', v);
+        gpio.emit('both', v);
+    }), watching = false;
     gpio.on('newListener', updateListening);
     gpio.on('removeListener', updateListening);
     function updateListening() {
@@ -58,14 +64,13 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         else fs.writeFileSync(pinPath+"/edge", 'none');
         
         if (bl || rl || fl) {
-            if (!watcher) watcher = fs.watch(pinPath+"/value", {persistent:false}, function () {
-                var v = gpio.value();
-                gpio.emit((v) ? 'rise' : 'fall', v);
-                gpio.emit('both', v);
-            });
-        } else if (watcher) {
-            watcher.close();
-            watcher = null;
+            if (!watching) {
+                watcher.add(fd, Epoll.EPOLLPRI);
+                watching = true;
+            }
+        } else if (watching) {
+            watcher.remove(fd);
+            watching = false;
         }
     }
     
