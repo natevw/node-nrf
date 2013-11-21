@@ -29,24 +29,23 @@ function _extend(obj) {
     return obj;
 }
 
-function setMicrotimeout(cb, us) {          // TODO: change to simple spinloop? setImmediate usually in ms range!!
+function blockUS(us) {      // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
     var start = process.hrtime();
-    function check() {
+    while (1) {
         var diff = process.hrtime(start);
-        if (diff[0] * 1e9 + diff[1] >= us*1e3) cb();
-        else setImmediate(check);
+        if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
     }
-    check();    // unqueued call may be enough, e.g. `process.hrtime(process.hrtime())[1]/1e3` often ~50µs on RaspPi!
 }
 
 //start = process.hrtime(), setMicrotimeout(function () { console.log(process.hrtime(start)[1]/1e3); }, 10)
 
 
-exports.connect = function (spi,ce) {
+exports.connect = function (spi,ce,irq) {
     var nrf = {},
         evt = new events.EventEmitter(),
         spi = SPI.initialize(spi),
-        ce = GPIO.connect(ce);
+        ce = GPIO.connect(ce),
+        irq = (arguments.length > 2) && GPIO.connect(irq);
     
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
@@ -122,6 +121,12 @@ exports.connect = function (spi,ce) {
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
     };
     
+    nrf.pulseCE = function () {
+        ce.value(true);     // pulse for at least 10µs
+        blockUS(10);
+        ce.value(false);
+    };
+    
     // expose:
     // - low level interface (getStates, setStates, etc.)
     // - mid level interface (channel, datarate, power, …)
@@ -141,7 +146,11 @@ exports.connect = function (spi,ce) {
             cb(new Error("Maximum packet size exceeded. Smaller writes, Dash!"));
         });
         
-        nrf.setStates({TX_ADDR:this._addr, RX_ADDR_P0:this._addr, PRIM_RX:false}, function (e) {
+        var acking = true,
+            states = {TX_ADDR:this._addr, PRIM_RX:false};
+        if (acking) states.RX_ADDR_P0 = states.TX_ADDR;
+        
+        nrf.setStates(, function (e) {
             if (e) return cb(e);
             
             var d = Buffer(1+buff.length);
@@ -150,18 +159,15 @@ exports.connect = function (spi,ce) {
             spi.write(d, function (e) {
                 if (e) return cb(e);
                 
-                ce.value(true);     // pulse for at least 10µs
-                setMicrotimeout(function () {
-                    ce.value(false);
-                    
+                nrf.pulseCE();
+                if (acking) {
+                    // TODO: (iff ACK expected?) wait for IRQ to signal TX_DS/MAX_RT
                     evt.on('TX_DS', function () {});
                     evt.on('MAX_RT', function () {});
                     
-                    // TODO: (iff ACK expected?) wait for IRQ to signal TX_DS/MAX_RT
-                    cb(null);
                     // BONUS: if reading and RX_DS, then R_RX_PAYLOAD
                     //this._wantsRead = this.push(/*R_RX_PAYLOAD*/)
-                }, 10);
+                } else cb(null);
             });
         });
     };
@@ -184,6 +190,12 @@ exports.connect = function (spi,ce) {
             .defer(nrf.execCommand, 'FLUSH_RX')
             .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}))
         .await(cb);
+        
+        if (irq) {
+        
+        } else {
+        
+        }
     }
     
     nrf.execCommand = function (cmd, cb) {
