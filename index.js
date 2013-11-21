@@ -29,7 +29,7 @@ function _extend(obj) {
     return obj;
 }
 
-function setMicrotimeout(cb, us) {
+function setMicrotimeout(cb, us) {          // TODO: change to simple spinloop? setImmediate usually in ms range!!
     var start = process.hrtime();
     function check() {
         var diff = process.hrtime(start);
