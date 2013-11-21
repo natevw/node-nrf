@@ -33,7 +33,6 @@ exports.connect = function (pin) {        // TODO: sync up compat, split out
         fs.writeFileSync(pinPath+"/direction", mode);
     };
     
-    // TODO: error handling?
     gpio.value = function (val) {
         var v = Buffer(1);
         if (!arguments.length) {
