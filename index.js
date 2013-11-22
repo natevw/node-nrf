@@ -177,10 +177,10 @@ exports.connect = function (spi,ce,irq) {
                                 cb(e);
                             });
                         }
-                    });
+                    }.bind(this));
                 }); else cb(null);
-            });
-        });
+            }.bind(this));
+        }.bind(this));
     };
     PTX.prototype._read = function () {
         /* just gives okay to read, use this.push when packet received */
