@@ -158,9 +158,7 @@ exports.connect = function (spi,ce,irq) {
                 if (e) return cb(e);
                 nrf.pulseCE();
                 if (acking) evt.once('interrupt', function () {
-console.log("irq, reading states");
                     nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO'], function (e,d) {
-console.log("states:",d);
                         if (e) return cb(e);
                         if (d.MAX_RT) finish(new Error("Packet timeout."));
                         else if (d.RX_DR && d.RX_P_NO === 0) {      // got ACK payload
@@ -174,7 +172,6 @@ console.log("states:",d);
                             });
                         } else finish(null);
                         function finish(e) {        // clear interrupt and call back
-console.log("finishing", e);
                             delete d.RX_P_NO;
                             nrf.setStates(d, function () {
                                 cb(e);
