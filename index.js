@@ -227,12 +227,16 @@ exports.connect = function (spi,ce,irq) {
     };
     
     
-    nrf.begin = function (cb) {
+    nrf.begin = function (states, cb) {
+        if (arguments.length < 2) {
+            cb = states;
+            states = {};
+        }
         ce.mode('low');
         q(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
-            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}))
+            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}, states))
         .await(cb);
         
         if (irq) {
