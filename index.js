@@ -200,7 +200,7 @@ exports.connect = function (spi,ce,irq) {
         this._begin();
     }
     util.inherits(PRX, stream.Duplex);
-    PTX.prototype._begin = function () {
+    PRX.prototype._begin = function () {
         ce.value(true);         // TODO: coordinate to make sure PTX leaves high for us
         evt.on('interrupt', function () {         // TODO: make sure ours don't confuse PTX
             nrf.getStates(['RX_DR','RX_P_NO'], function (e,d) {
@@ -218,7 +218,7 @@ exports.connect = function (spi,ce,irq) {
             }.bind(this))
         }.bind(this));
     }
-    PTX.prototype._read = function () {
+    PRX.prototype._read = function () {
         this._wantsRead = true;
     };
     
