@@ -191,7 +191,40 @@ exports.connect = function (spi,ce,irq) {
         return new PTX(addr,opts);
     };
     
-    //nrf.reserveReceiveStream = function ([pipe, ]addr) {};
+    
+    function PRX(pipe, addr, opts) {
+        stream.Duplex.call(this);
+        this._pipe = pipe;
+        this._addr = addr;
+        this._wantsRead = false;
+        this._begin();
+    }
+    util.inherits(PRX, stream.Duplex);
+    PTX.prototype._begin = function () {
+        ce.value(true);         // TODO: coordinate to make sure PTX leaves high for us
+        evt.on('interrupt', function () {         // TODO: make sure ours don't confuse PTX
+            nrf.getStates(['RX_DR','RX_P_NO'], function (e,d) {
+                if (e) return this.emit('error', e);
+                if (!d.RX_DR || d.RX_P_NO !== this._pipe) return;
+                if (!this._wantsRead) return;   // TODO: what are the implications of this? (need to reset IRQ at least!)
+                
+                nrf.getStates(['RX_PW_P'+this._pipe], function (e,d) {
+                    if (e) return finish(e);
+                    spi.transfer(Buffer([COMMANDS.R_RX_PAYLOAD]), 1+d.RX_PW_P0, function (e,d) {
+                        if (e) return finish(e);
+                        this._wantsRead = this.push(d);
+                    });
+                });
+            }.bind(this))
+        }.bind(this));
+    }
+    PTX.prototype._read = function () {
+        this._wantsRead = true;
+    };
+    
+    nrf.reserveReceiveStream = function (pipe, addr, opts) {
+        return new PRX(pipe, addr, opts);
+    };
     
     
     nrf.begin = function (cb) {
