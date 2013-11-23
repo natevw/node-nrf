@@ -133,6 +133,62 @@ exports.connect = function (spi,ce,irq) {
     // - high level PRX (addrs)
     // - high level PTX (addr)
     
+    // caller must know pipe and provide its params!
+    nrf.readPayload = function (params, cb) {
+        if (params.width === 'auto') spi.transfer(Buffer([R_RX_PL_WID]), 2, function (e,d) {
+            if (e) return finish(e);
+            var width = d[1];
+            if (width > 32) spi.write(Buffer([FLUSH_RX]), function (e,d) {
+                finish(new Error("Invalid dynamic payload size, receive queue flushed."));  // per R_RX_PL_WID details, p.51
+            }); else read(width);
+        }); else read(params.width);
+        
+        function read(width) {
+            spi.transfer(Buffer[R_RX_PAYLOAD], 1+width, function (e,d) {
+                if (e) return finish(e);
+                else finish(null, d.slice(1));
+            });
+        }
+        
+        function finish(e,d) {  // see footnote c, p.62
+            if (params.leaveStatus) cb(e,d);
+            else nrf.setStates({RX_DR:true}, function (e2) {    
+                cb(e||e2,d);
+            });
+        }
+    };
+    
+    var mode = 'off',
+        pipes = [];
+    nrf.setMode = function (newMode) {                     // ('off'), ('tx', addr), ('rx', addrs)
+        mode = newMode;
+        switch (mode) {
+            case 'off':
+            case 'tx':
+            case 'rx':
+            default:
+                // TODO: close existing pipes, start any switch over, emit event when complete
+        }
+    };
+    nrf.openPipe = function (addr, opts) {
+        var pipe;
+        switch (mode) {
+            case 'off':
+                throw Error("Radio must be in transmit or receive mode to open a pipe.");
+            case 'tx':
+                pipe = new PTX(addr, opts);
+                break;
+            case 'rx':
+                pipe = new PRX(addr, opts);
+                break;
+            default:
+                throw Error("Unknown mode '"+mode="', cannot open pipe!");
+        }
+        pipes.push(pipe);
+        return pipe;
+    };
+    // interrupt: TX_DS, RX_DR, MAX_RT
+    
     function PTX(addr,opts) {
         stream.Duplex.call(this);
         this._addr = addr;
@@ -207,17 +263,15 @@ exports.connect = function (spi,ce,irq) {
                 if (e) return this.emit('error', e);
                 if (!d.RX_DR || d.RX_P_NO !== this._pipe) return;
                 if (!this._wantsRead) return;   // TODO: what are the implications of this? (need to reset IRQ at least!)
-                
-                nrf.getStates(['RX_PW_P'+this._pipe], function (e,d) {
-                    if (e) return finish(e);
-                    spi.transfer(Buffer([COMMANDS.R_RX_PAYLOAD]), 1+d.RX_PW_P0, function (e,d) {
-                        if (e) return finish(e);
-                        this._wantsRead = this.push(d);
-                    });
+                nrf.readPayload(function (e,d) {
+                    if (e) this.emit('error', e);
+                    else this._wantsRead = this.push(d);
                 });
+                // TODO: we are ignoring this._wantsRead — we should probably let RX FIFO fill instead so xcvr stops ACKing!
+                // TODO, cont'd: …but, how should we detect 
             }.bind(this))
         }.bind(this));
-    }
+    };
     PRX.prototype._read = function () {
         this._wantsRead = true;
     };
@@ -225,7 +279,6 @@ exports.connect = function (spi,ce,irq) {
     nrf.reserveReceiveStream = function (pipe, addr, opts) {
         return new PRX(pipe, addr, opts);
     };
-    
     
     nrf.begin = function (states, cb) {
         if (arguments.length < 2) {
