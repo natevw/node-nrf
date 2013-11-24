@@ -134,14 +134,14 @@ exports.connect = function (spi,ce,irq) {
     // - high level PTX (addr)
     
     // caller must know pipe and provide its params!
-    nrf.readPayload = function (params, cb) {
-        if (params.width === 'auto') spi.transfer(Buffer([R_RX_PL_WID]), 2, function (e,d) {
+    nrf.readPayload = function (opts, cb) {
+        if (opts.width === 'auto') spi.transfer(Buffer([R_RX_PL_WID]), 2, function (e,d) {
             if (e) return finish(e);
             var width = d[1];
             if (width > 32) spi.write(Buffer([FLUSH_RX]), function (e,d) {
                 finish(new Error("Invalid dynamic payload size, receive queue flushed."));  // per R_RX_PL_WID details, p.51
             }); else read(width);
-        }); else read(params.width);
+        }); else read(opts.width);
         
         function read(width) {
             spi.transfer(Buffer[R_RX_PAYLOAD], 1+width, function (e,d) {
@@ -151,21 +151,52 @@ exports.connect = function (spi,ce,irq) {
         }
         
         function finish(e,d) {  // see footnote c, p.62
-            if (params.leaveStatus) cb(e,d);
+            if (opts.leaveStatus) cb(e,d);
             else nrf.setStates({RX_DR:true}, function (e2) {    
                 cb(e||e2,d);
             });
         }
     };
     
+    // caller must set up any prerequisites (i.e. TX addr) and ensure no other send is pending
+    nrf.sendPayload = function (data, opts, cb) {
+        var d;
+        if (opts.dataPrepadded) {
+            d = data;
+        } else {
+            d = Buffer(1+data.length);
+            data.copy(d, 1);
+        }
+        if (d.length > 32+1) throw Error("Maximum packet size exceeded. Smaller writes, Dash!");
+        d[0] = (opts.noAck) ? COMMANDS.W_TX_PD_NOACK : COMMANDS.W_TX_PAYLOAD;
+        spi.write(d, function (e) {
+            if (e) return cb(e);
+            nrf.pulseCE();
+            evt.once('interrupt', function (d) {
+                if (d.MAX_RT) finish(new Error("Packet timeout."));         // TODO: clear TX_FIFO? (see p.56)
+                else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
+                else finish();
+                
+                function finish(e) {        // clear our interrupts, leaving RX_DR
+                    nrf.setStates({TX_DS:true,MAX_RT:true,RX_DR:false}, function () {
+                        cb(e||null);
+                    });
+                }
+            });
+        });  
+    };
+    
     var mode = 'off',
         pipes = [];
-    nrf.setMode = function (newMode) {                     // ('off'), ('tx', addr), ('rx', addrs)
+    nrf.mode = function (newMode) {
+        if (arguments.length < 1) return mode;
+        
         mode = newMode;
         switch (mode) {
             case 'off':
             case 'tx':
             case 'rx':
+                //ce.value(true);
             default:
                 // TODO: close existing pipes, start any switch over, emit event when complete
         }
@@ -187,99 +218,82 @@ exports.connect = function (spi,ce,irq) {
         pipes.push(pipe);
         return pipe;
     };
-    // interrupt: TX_DS, RX_DR, MAX_RT
     
     function PTX(addr,opts) {
         stream.Duplex.call(this);
         this._addr = addr;
         this._wantsRead = false;
+        
+        var irqHandler = this._ackRX.bind(this);
+        nrf.addListener('interrupt', irqHandler);
+        this.once('close', function () {
+            nrf.removeListener('interrupt', irqHandler);
+        });
     }
     util.inherits(PTX, stream.Duplex);
     PTX.prototype._write = function (buff, _enc, cb) {
-        // TODO: handle shared transmissions (via stack?)
-        // TODO: don't set RX_ADDR_P0 if simplex/no-ack
-        if (buff.length > 32) return process.nextTick(function () {
-            cb(new Error("Maximum packet size exceeded. Smaller writes, Dash!"));
-        });
+        // TODO: handle shared transmissions (but don't set RX_ADDR_P0 if simplex/no-ack)
+        try {
+            nrf.sendPayload(buff, cb);
+        } catch (e) {
+            process.nextTick(cb.bind(null, e));
+        }
         
+        /*
         var acking = true,
             states = {TX_ADDR:this._addr, PRIM_RX:false};
         if (acking) states.RX_ADDR_P0 = states.TX_ADDR;
         nrf.setStates(states, function (e) {
             if (e) return cb(e);
-            var d = Buffer(1+buff.length);
-            d[0] = COMMANDS.W_TX_PAYLOAD;
-            buff.copy(d, 1);
-            spi.write(d, function (e) {
-                if (e) return cb(e);
-                nrf.pulseCE();
-                if (acking) evt.once('interrupt', function () {
-                    nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO'], function (e,d) {
-                        if (e) return cb(e);
-                        if (d.MAX_RT) finish(new Error("Packet timeout."));
-                        else if (d.RX_DR && d.RX_P_NO === 0) {      // got ACK payload
-                            // NOTE: we ignore this._wantsRead, prefering to buffer rather than drop
-                            nrf.getStates(['RX_PW_P0'], function (e,d) {
-                                if (e) return finish(e);
-                                spi.transfer(Buffer([COMMANDS.R_RX_PAYLOAD]), 1+d.RX_PW_P0, function (e,d) {
-                                    if (e) return finish(e);
-                                    this._wantsRead = this.push(d);
-                                });
-                            });
-                        } else finish(null);
-                        function finish(e) {        // clear interrupt and call back
-                            delete d.RX_P_NO;
-                            nrf.setStates(d, function () {
-                                cb(e);
-                            });
-                        }
-                    }.bind(this));
-                }); else cb(null);
-            }.bind(this));
+        });
+        */
+    };
+    PTX.prototype._ackRX = function (d) {     // handle ACK payload if we got one
+        if (d.RX_P_NO !== 0) return;
+        
+        // NOTE: we ignore this._wantsRead, prefering to buffer rather than drop
+        nrf.readPayload({width:'auto'}, function (e,d) {
+            if (e) this.emit('error', e);
+            else this._wantsRead = this.push(d);
         }.bind(this));
+        // TODO: could multiple payloads ever end up waiting in FIFO when operating as PTX?
     };
     PTX.prototype._read = function () {
         /* just gives okay to read, use this.push when packet received */
         this._wantsRead = true;
     };
     
-    nrf.createTransmitStream = function (addr, opts) {
-        return new PTX(addr,opts);
-    };
-    
-    
     function PRX(pipe, addr, opts) {
         stream.Duplex.call(this);
         this._pipe = pipe;
         this._addr = addr;
+        this._size = 'auto';
         this._wantsRead = false;
-        this._begin();
     }
     util.inherits(PRX, stream.Duplex);
-    PRX.prototype._begin = function () {
-        ce.value(true);         // TODO: coordinate to make sure PTX leaves high for us
-        evt.on('interrupt', function () {         // TODO: make sure ours don't confuse PTX
-            nrf.getStates(['RX_DR','RX_P_NO'], function (e,d) {
-                if (e) return this.emit('error', e);
-                if (!d.RX_DR || d.RX_P_NO !== this._pipe) return;
-                if (!this._wantsRead) return;   // TODO: what are the implications of this? (need to reset IRQ at least!)
-                nrf.readPayload(function (e,d) {
-                    if (e) this.emit('error', e);
-                    else this._wantsRead = this.push(d);
-                });
-                // TODO: we are ignoring this._wantsRead — we should probably let RX FIFO fill instead so xcvr stops ACKing!
-                // TODO, cont'd: …but, how should we detect 
-            }.bind(this))
+    PTX.prototype._primRX = function (d) {
+        if (d.RX_P_NO !== this._pipe) return;
+        if (!this._wantsRead) return;           // NOTE: this could starve other RX pipes!
+        
+        if (this._wantsRead) nrf.readPayload({width:this._size}, function (e,d) {
+            if (e) this.emit('error', e);
+            else this._wantsRead = this.push(d);
+            nrf._checkStatus(false);         // see footnote c, p.63
         }.bind(this));
     };
     PRX.prototype._read = function () {
         this._wantsRead = true;
+        nrf._checkStatus(false);
     };
     
-    nrf.reserveReceiveStream = function (pipe, addr, opts) {
-        return new PRX(pipe, addr, opts);
+    nrf._checkStatus = function (irq) {
+        nrf.getStates(['RX_P_NO','TX_DS','MAX_RT'], function (e,d) {
+            if (e) evt.emit('error', e);
+            else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) evt.emit('interrupt', d);
+        });
     };
     
+    // TODO: move this to be part of mode switching logic (w/special reset mode?)
     nrf.begin = function (states, cb) {
         if (arguments.length < 2) {
             cb = states;
@@ -294,7 +308,7 @@ exports.connect = function (spi,ce,irq) {
         
         if (irq) {
             irq.mode('in');
-            irq.on('fall', function (v) { evt.emit('interrupt'); });
+            irq.on('fall', nrf._checkStatus.bind(nrf,true));            // TODO: ensure GC on end
         } else {
             // TODO: what? poll status ourselves?
             throw new Error("Must be used with IRQ pin until fallback handling is added.");
