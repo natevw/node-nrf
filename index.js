@@ -219,19 +219,21 @@ exports.connect = function (spi,ce,irq) {
         return pipe;
     };
     
-    function PTX(addr,opts) {
+    function PxX(pipe, addr, opts) {           // base for PTX/PRX
         stream.Duplex.call(this);
+        this._pipe = pipe;
         this._addr = addr;
+        this._size = opts.size || 'auto';
         this._wantsRead = false;
         
-        var irqHandler = this._ackRX.bind(this);
+        var irqHandler = this._rx.bind(this);
         nrf.addListener('interrupt', irqHandler);
         this.once('close', function () {
             nrf.removeListener('interrupt', irqHandler);
         });
     }
-    util.inherits(PTX, stream.Duplex);
-    PTX.prototype._write = function (buff, _enc, cb) {
+    util.inherits(PxX, stream.Duplex);
+    PxX.prototype._write = function (buff, _enc, cb) {
         // TODO: handle shared transmissions (but don't set RX_ADDR_P0 if simplex/no-ack)
         try {
             nrf.sendPayload(buff, cb);
@@ -248,30 +250,7 @@ exports.connect = function (spi,ce,irq) {
         });
         */
     };
-    PTX.prototype._ackRX = function (d) {     // handle ACK payload if we got one
-        if (d.RX_P_NO !== 0) return;
-        
-        // NOTE: we ignore this._wantsRead, prefering to buffer rather than drop
-        nrf.readPayload({width:'auto'}, function (e,d) {
-            if (e) this.emit('error', e);
-            else this._wantsRead = this.push(d);
-        }.bind(this));
-        // TODO: could multiple payloads ever end up waiting in FIFO when operating as PTX?
-    };
-    PTX.prototype._read = function () {
-        /* just gives okay to read, use this.push when packet received */
-        this._wantsRead = true;
-    };
-    
-    function PRX(pipe, addr, opts) {
-        stream.Duplex.call(this);
-        this._pipe = pipe;
-        this._addr = addr;
-        this._size = 'auto';
-        this._wantsRead = false;
-    }
-    util.inherits(PRX, stream.Duplex);
-    PTX.prototype._primRX = function (d) {
+    PxX.prototype._rx = function (d) {
         if (d.RX_P_NO !== this._pipe) return;
         if (!this._wantsRead) return;           // NOTE: this could starve other RX pipes!
         
@@ -281,10 +260,21 @@ exports.connect = function (spi,ce,irq) {
             nrf._checkStatus(false);         // see footnote c, p.63
         }.bind(this));
     };
-    PRX.prototype._read = function () {
+    PxX.prototype._read = function () {
         this._wantsRead = true;
         nrf._checkStatus(false);
     };
+    
+    function PTX(addr,opts) {
+        opts = _extend({}, opts||{}, {size:'auto'});
+        PxX.call(this, 0, addr, opts);
+    }
+    util.inherits(PTX, PxX);
+    
+    function PRX(pipe, addr, opts) {
+        PxX.call(this, pipe, addr, opts);
+    }
+    util.inherits(PRX, PxX);
     
     nrf._checkStatus = function (irq) {
         nrf.getStates(['RX_P_NO','TX_DS','MAX_RT'], function (e,d) {
@@ -306,12 +296,15 @@ exports.connect = function (spi,ce,irq) {
             .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}, states))
         .await(cb);
         
+        // TODO: provide proper cleanup of listener/interval below
         if (irq) {
             irq.mode('in');
-            irq.on('fall', nrf._checkStatus.bind(nrf,true));            // TODO: ensure GC on end
+            irq.on('fall', nrf._checkStatus.bind(nrf,true));
         } else {
-            // TODO: what? poll status ourselves?
-            throw new Error("Must be used with IRQ pin until fallback handling is added.");
+            console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
+            setInterval(function () {       // TODO: clear interval when there are no listeners
+                if (evt.listeners('interrupt').length) nrf._checkStatus(false);
+            }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
         }
     }
     
