@@ -168,12 +168,20 @@ exports.connect = function (spi,ce,irq) {
             data.copy(d, 1);
         }
         if (d.length > 32+1) throw Error("Maximum packet size exceeded. Smaller writes, Dash!");
-        d[0] = (opts.noAck) ? COMMANDS.W_TX_PD_NOACK : COMMANDS.W_TX_PAYLOAD;
+        if (opts.ackTo) {
+            d[0] = COMMANDS.W_ACK_PAYLOAD|opts.ackTo;
+        } else if (opts.noAck) {
+            d[0] = COMMANDS.W_TX_PD_NOACK;
+        } else {
+            d[0] = COMMANDS.W_TX_PAYLOAD;
+        }
         spi.write(d, function (e) {
             if (e) return cb(e);
             nrf.pulseCE();
             evt.once('interrupt', function (d) {
-                if (d.MAX_RT) finish(new Error("Packet timeout."));         // TODO: clear TX_FIFO? (see p.56)
+                if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
+                    finish(new Error("Packet timeout, transmit queue flushed."));
+                });
                 else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
                 else finish();
                 
@@ -225,6 +233,7 @@ exports.connect = function (spi,ce,irq) {
         this._addr = addr;
         this._size = opts.size || 'auto';
         this._wantsRead = false;
+        this._sendOpts = {};
         
         var irqHandler = this._rx.bind(this);
         nrf.addListener('interrupt', irqHandler);
@@ -236,7 +245,7 @@ exports.connect = function (spi,ce,irq) {
     PxX.prototype._write = function (buff, _enc, cb) {
         // TODO: handle shared transmissions (but don't set RX_ADDR_P0 if simplex/no-ack)
         try {
-            nrf.sendPayload(buff, cb);
+            nrf.sendPayload(buff, this._sendOpts, cb);
         } catch (e) {
             process.nextTick(cb.bind(null, e));
         }
@@ -273,6 +282,7 @@ exports.connect = function (spi,ce,irq) {
     
     function PRX(pipe, addr, opts) {
         PxX.call(this, pipe, addr, opts);
+        this._sendOpts = {ackTo:pipe};
     }
     util.inherits(PRX, PxX);
     
