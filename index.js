@@ -45,6 +45,20 @@ exports.connect = function (spi,ce,irq) {
         ce = GPIO.connect(ce),
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
+    nrf.execCommand = function (cmd, readlen, cb) {
+        if (typeof readlen === 'function') {
+            cb = readlen;
+            readlen = 0;
+        }
+        var send;
+        if (typeof cmd === 'string') {
+            send = Buffer([COMMANDS[cmd]]);
+        } else if (Array.isArray(cmd)) {
+            send = Buffer([COMMANDS[cmd[0]] & cmd[1]]);
+        } else send = cmd;
+        spi.transfer(send, readlen, cb);
+    };
+    
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
@@ -192,20 +206,68 @@ exports.connect = function (spi,ce,irq) {
         });  
     };
     
+    nrf.reset = function (states, cb) {
+        if (arguments.length < 2) {
+            cb = states;
+            states = {};
+        }
+        ce.mode('low');
+        q(1)
+            .defer(nrf.execCommand, 'FLUSH_TX')
+            .defer(nrf.execCommand, 'FLUSH_RX')
+            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, states))
+        .await(cb);
+    };
+    
+    var irqListener = nrf._checkStatus.bind(nrf,true),
+        irqOn = false;
+    nrf._irqOn = function () {
+        if (irqOn) return;
+        else if (irq) {
+            irq.mode('in');
+            irq.addListener('fall', irqListener);
+        } else {
+            console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
+            irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners
+                if (evt.listeners('interrupt').length) nrf._checkStatus(false);
+            }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
+        }
+        irqOn = true;
+    };
+    nrf._irqOff = function () {
+        if (!irqOn) return;
+        else if (irq) irq.removeListener('fall', irqListener);
+        else clearInterval(irqListener);
+        irqOn = false;
+    };
+    
+    
+    
     var mode = 'off',
         pipes = [];
-    nrf.mode = function (newMode) {
+    nrf.mode = function (newMode, cb) {
         if (arguments.length < 1) return mode;
         
         mode = newMode;
+        pipes.forEach(function (pipe) { pipe.close(); });
         switch (mode) {
             case 'off':
+                nrf._irqOff();
+                nrf.reset(ready);
+                break;
             case 'tx':
+                nrf.reset({PWR_UP:true,CRCO:null,ARD:null,ARC:null,RF_CH:null,RF_PWR:null,EN_DPL:null}, function () {
+                    
+                    nrf._irqOn();
+                    ready();
+                });
             case 'rx':
                 //ce.value(true);
             default:
-                // TODO: close existing pipes, start any switch over, emit event when complete
+                // TODO: start any switch over, emit event when complete
         }
+        function ready() { evt.emit('ready', mode); }
+        if (cb) evt.once('ready', cb);
     };
     nrf.openPipe = function (addr, opts) {
         var pipe;
@@ -216,6 +278,7 @@ exports.connect = function (spi,ce,irq) {
                 pipe = new PTX(addr, opts);
                 break;
             case 'rx':
+                // TODO: choose radio pipe number
                 pipe = new PRX(addr, opts);
                 break;
             default:
@@ -271,6 +334,10 @@ exports.connect = function (spi,ce,irq) {
         this._wantsRead = true;
         nrf._checkStatus(false);
     };
+    PxX.prototype.close = function () {
+        this.push(null);
+        this.emit('close');
+    };
     
     function PTX(addr,opts) {
         opts = _extend({}, opts||{}, {size:'auto'});
@@ -291,34 +358,6 @@ exports.connect = function (spi,ce,irq) {
         });
     };
     
-    // TODO: move this to be part of mode switching logic (w/special reset mode?)
-    nrf.begin = function (states, cb) {
-        if (arguments.length < 2) {
-            cb = states;
-            states = {};
-        }
-        ce.mode('low');
-        q(1)
-            .defer(nrf.execCommand, 'FLUSH_TX')
-            .defer(nrf.execCommand, 'FLUSH_RX')
-            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, {PWR_UP:true}, states))
-        .await(cb);
-        
-        // TODO: provide proper cleanup of listener/interval below
-        if (irq) {
-            irq.mode('in');
-            irq.on('fall', nrf._checkStatus.bind(nrf,true));
-        } else {
-            console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
-            setInterval(function () {       // TODO: clear interval when there are no listeners
-                if (evt.listeners('interrupt').length) nrf._checkStatus(false);
-            }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
-        }
-    }
-    
-    nrf.execCommand = function (cmd, cb) {
-        spi.write(Buffer([COMMANDS[cmd]]), cb);
-    };
     nrf.getStatus = function (cb) {
         nrf.getStates(['RX_DR','TX_DS','MAX_RT','RX_P_NO','TX_FULL'], function (e,d) {
             if (d) d.IRQ = irq.value();
