@@ -427,11 +427,14 @@ exports.connect = function (spi,ce,irq) {
         this._wantsRead = false;
         this._sendOpts = {};
         
+        // TODO: EN_ACK_PAY/EN_DYN_ACK somewhere
+        
         var s = {},
             n = pipe;
         if (opts.noRX) {
             s['ERX_P'+n] = false;
         } else {
+            if (addr.length > 1) s['AW'] = addr.length;     // slotForAddr ensures consistency with others
             s['RX_ADDR_P'+n] = addr;
             s['ERX_P'+n] = true;
         }
@@ -440,8 +443,8 @@ exports.connect = function (spi,ce,irq) {
             s['ENAA_P'+n] = false;
         } else if (this._size === 'auto') {
             s['EN_DPL'] = true;     // TODO: can nrf just always set this?
-            s['DPL_P'+n] = true;
             s['ENAA_P'+n] = true;   // must be set for DPL (…not sure why)
+            s['DPL_P'+n] = true;
         } else {
             s['RX_PW_P'+n] = this._size;
             s['DPL_P'+n] = false;
@@ -497,7 +500,7 @@ exports.connect = function (spi,ce,irq) {
         this.emit('close');
     };
     
-    function PTX(addr,opts) {               // opts: noRX
+    function PTX(addr,opts) {               // opts: size,noRX,noAck?
         opts = _extend({}, opts||{}, {size:'auto'});
         PxX.call(this, 0, addr, opts);
     }
