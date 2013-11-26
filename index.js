@@ -45,19 +45,38 @@ exports.connect = function (spi,ce,irq) {
         ce = GPIO.connect(ce),
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
-    nrf.execCommand = function (cmd, readlen, cb) {
-        if (typeof readlen === 'function') {
-            cb = readlen;
-            readlen = 0;
+    nrf.execCommand = function (cmd, data, cb) {
+        if (typeof data === 'function') {
+            cb = data;
+            data = 0;
         }
-        var send;
+        
+        var cmdByte;
         if (typeof cmd === 'string') {
-            send = Buffer([COMMANDS[cmd]]);
+            cmdByte = COMMANDS[cmd];
         } else if (Array.isArray(cmd)) {
-            send = Buffer([COMMANDS[cmd[0]] & cmd[1]]);
-        } else send = cmd;
-        spi.transfer(send, readlen, cb);
+            cmdByte = COMMANDS[cmd[0]] | cmd[1];
+        } else cmdByte = cmd;
+        
+        var writeBuf,
+            readLen = 0;
+        if (Buffer.isBuffer(data)) {
+            writeBuf = Buffer(data.length+1);
+            writeBuf[0] = COMMANDS[cmd];
+            data.copy(send,1);
+        } else if (Array.isArray(data)) {
+            writeBuf = Buffer([cmdByte].concat(data));
+        } else {
+            writeBuf = Buffer([cmdByte]);
+            readLen = data;
+        }
+        
+        spi.transfer(writeBuf, readLen && readLen+1, function (e,d) {
+            if (e) return cb(e);
+            else return cb(null, d && d.slice(1));
+        });
     };
+    
     
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
@@ -88,15 +107,15 @@ exports.connect = function (spi,ce,irq) {
         var registersNeeded = registersForMnemonics(list),
             states = Object.create(null);
         function processInquiryForRegister(reg, cb) {
-            // TODO: d[0] always has register 0x07 but we're not optimizing for that
+            // TODO: execCommand always reads register 0x07 but we're not optimizing for that
             var iq = registersNeeded[reg];
-            spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), 1+iq.len, function (e,d) {
+            nrf.execCommand(['R_REGISTER',reg], iq.len, function (e,d) {
                 if (e) return cb(e);
                 iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
-                    states[mnem] = (d[1] & m.mask) >> m.rightmostBit;
+                    states[mnem] = (d[0] & m.mask) >> m.rightmostBit;
                 });
-                if (iq.solo) states[iq.solo] = d.slice(1);
+                if (iq.solo) states[iq.solo] = d;
                 cb();
             });
         }
@@ -112,22 +131,20 @@ exports.connect = function (spi,ce,irq) {
             // if a register is "full" we can simply overwrite, otherwise we must read+merge
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
             if (!iq.arr.length || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
-                var d = Buffer(1+iq.len),
-                    val = vals[iq.solo || iq.arr[0]];
-                d[0] = COMMANDS.W_REGISTER|reg;
-                if (Buffer.isBuffer(val)) val.copy(d, 1);
-                else d[1] = val;
-                spi.write(d, cb);
-            } else spi.transfer(Buffer([COMMANDS.R_REGISTER|reg]), /*1+iq.len*/2, function (e,d) {
+                var val = vals[iq.solo || iq.arr[0]],
+                    buf = (Buffer.isBuffer(val)) ? val : [val];
+                nrf.execCommand(['W_REGISTER', reg], buf, cb);
+                
+            } else nrf.execCommand(['R_REGISTER', reg], 1, function (e,d) {
                 if (e) return cb(e);
-                d[0] = COMMANDS.W_REGISTER|reg;     // we reuse read buffer for writing
-                if (iq.solo) d[1] = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
+                var val = 0;
+                if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
-                    d[1] &= ~m.mask;        // clear current value
-                    d[1] |= (vals[mnem] << m.rightmostBit) & m.mask;
+                    val &= ~m.mask;        // clear current value
+                    val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
-                spi.write(d, cb);
+                nrf.execCommand(['W_REGISTER', reg], [val], cb);
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
@@ -147,19 +164,16 @@ exports.connect = function (spi,ce,irq) {
     
     // caller must know pipe and provide its params!
     nrf.readPayload = function (opts, cb) {
-        if (opts.width === 'auto') spi.transfer(Buffer([R_RX_PL_WID]), 2, function (e,d) {
+        if (opts.width === 'auto') nrf.execCommand('R_RX_PL_WID', 1, function (e,d) {
             if (e) return finish(e);
-            var width = d[1];
-            if (width > 32) spi.write(Buffer([FLUSH_RX]), function (e,d) {
+            var width = d[0];
+            if (width > 32) nrf.execCommand('FLUSH_RX', function (e,d) {
                 finish(new Error("Invalid dynamic payload size, receive queue flushed."));  // per R_RX_PL_WID details, p.51
             }); else read(width);
         }); else read(opts.width);
         
         function read(width) {
-            spi.transfer(Buffer[R_RX_PAYLOAD], 1+width, function (e,d) {
-                if (e) return finish(e);
-                else finish(null, d.slice(1));
-            });
+            nrf.execCommand('R_RX_PAYLOAD', width, finish);
         }
         
         function finish(e,d) {  // see footnote c, p.62
@@ -172,22 +186,17 @@ exports.connect = function (spi,ce,irq) {
     
     // caller must set up any prerequisites (i.e. TX addr) and ensure no other send is pending
     nrf.sendPayload = function (data, opts, cb) {
-        var d;
-        if (opts.dataPrepadded) {
-            d = data;
-        } else {
-            d = Buffer(1+data.length);
-            data.copy(d, 1);
-        }
-        if (d.length > 32+1) throw Error("Maximum packet size exceeded. Smaller writes, Dash!");
+        if (data.length > 32) throw Error("Maximum packet size exceeded. Smaller writes, Dash!");
+        
+        var cmd;
         if (opts.ackTo) {
-            d[0] = COMMANDS.W_ACK_PAYLOAD|opts.ackTo;
+            cmd = ['W_ACK_PAYLOAD',opts.ackTo];
         } else if (opts.noAck) {
-            d[0] = COMMANDS.W_TX_PD_NOACK;
+            cmd = 'W_TX_PD_NOACK';
         } else {
-            d[0] = COMMANDS.W_TX_PAYLOAD;
+            cmd = 'W_TX_PAYLOAD';
         }
-        spi.write(d, function (e) {
+        nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
             nrf.pulseCE();
             evt.once('interrupt', function (d) {
