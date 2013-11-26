@@ -45,7 +45,7 @@ exports.connect = function (spi,ce,irq) {
         ce = GPIO.connect(ce),
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
-    nrf.execCommand = function (cmd, data, cb) {
+    nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
         if (typeof data === 'function') {
             cb = data;
             data = 0;
@@ -62,8 +62,8 @@ exports.connect = function (spi,ce,irq) {
             readLen = 0;
         if (Buffer.isBuffer(data)) {
             writeBuf = Buffer(data.length+1);
-            writeBuf[0] = COMMANDS[cmd];
-            data.copy(send,1);
+            writeBuf[0] = cmdByte;
+            data.copy(writeBuf,1);
         } else if (Array.isArray(data)) {
             writeBuf = Buffer([cmdByte].concat(data));
         } else {
@@ -75,8 +75,7 @@ exports.connect = function (spi,ce,irq) {
             if (e) return cb(e);
             else return cb(null, d && d.slice(1));
         });
-    };
-    
+    };   
     
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
