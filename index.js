@@ -155,9 +155,98 @@ exports.connect = function (spi,ce,irq) {
     
     // expose:
     // ✓ low level interface (execCommand, getStates, setStates, pulseCE, 'interrupt')
-    // - mid level interface (channel, datarate, power, …)
+    // ✓ mid level interface (channel, dataRate, power, crcBytes, autoRetransmit{count,delay})
     // - high level PRX (addrs)
     // - high level PTX (addr)
+    
+    nrf.channel = function (val, cb) {
+        if (arguments.length < 2) {
+            cb = val;
+            nrf.getStates(['RF_CH'], function (e,d) { cb(e, d && d.RF_CH); });
+        } else nrf.setStates({RF_CH:val}, cb);
+        return this;
+    };
+    
+    nrf.dataRate = function (val, cb) {
+        if (arguments.length < 2) {
+            cb = val;
+            nrf.getStates(['RF_DR_LOW, RF_DR_HIGH'], function (e,d) {
+                if (e) return cb(e);
+                else if (d.RF_DR_LOW) cb(null, '250kbps');
+                else if (d.RF_DR_HIGH) cb(null, '2Mbps');
+                else cb(null, '1Mbps');
+            });
+        } else {
+            switch (val) {
+                case '1Mbps':
+                    val = {RF_DR_LOW:false,RF_DR_HIGH:false};
+                    break;
+                case '2Mbps':
+                    val = {RF_DR_LOW:false,RF_DR_HIGH:true};
+                    break;
+                case '250kbps':
+                    val = {RF_DR_LOW:true,RF_DR_HIGH:false};
+                    break;
+                default:
+                    throw Error("dataRate must be one of '1Mbps', '2Mbps', or '250kbps'.");
+            }
+            nrf.setStates(val, cb);
+        }
+        return this;
+    };
+    
+    nrf.power = function (val, cb) {
+        var vals = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];
+        if (arguments.length < 2) {
+            cb = val;
+            nrf.getStates(['RF_PWR'], function (e,d) { cb(e, d && vals[d.RF_PWR]); });
+        } else {
+            val = vals.indexOf(val);
+            if (val === -1) throw Error("Radio power must be 'PA_MIN', 'PA_LOW', 'PA_HIGH' or 'PA_MAX'.");
+            nrf.setStates({RF_PWR:val}, cb);
+        }
+        return this;
+    };
+    
+    nrf.crcBytes = function (val, cb) {
+        if (arguments.length < 2) {
+            cb = val;
+            nrf.getStates(['EN_CRC, CRCO'], function (e,d) {
+                if (e) return cb(e);
+                else if (!d.EN_CRC) cb(null, 0);
+                else if (d.CRCO) cb(null, 2);
+                else cb(null, 1);
+            });
+        } else {
+            switch (val) {
+                case 0:
+                    val = {EN_CRC:false,CRCO:0};
+                    break;
+                case 1:
+                    val = {EN_CRC:true,CRCO:0};
+                    break;
+                case 2:
+                    val = {EN_CRC:true,CRCO:1};
+                    break;
+                default:
+                    throw Error("crcBytes must be 1, 2, or 0.");
+            }
+            nrf.setStates(val, cb);
+        }
+        return this;
+    };
+    
+    nrf.autoRetransmit = function (val, cb) {
+        if (arguments.length < 2) {
+            cb = val;
+            nrf.getStates(['ARD, ARC'], function (e,d) { cb(e, d && {count:d.ARC,delay:250*(1+d.ARD)}); });
+        } else {
+            var states = {};
+            if ('count' in val) states['ARC'] = val.count;
+            if ('delay' in val) states['ARD'] = val.delay/250 - 1;
+            nrf.setStates(val, cb);
+        }
+    };
     
     // caller must know pipe and provide its params!
     nrf.readPayload = function (opts, cb) {
@@ -248,7 +337,6 @@ exports.connect = function (spi,ce,irq) {
     };
     
     
-    
     var mode = 'off',
         pipes = [];
     nrf.mode = function (newMode, cb) {
@@ -256,19 +344,26 @@ exports.connect = function (spi,ce,irq) {
         
         mode = newMode;
         pipes.forEach(function (pipe) { pipe.close(); });
+        pipes.length = 0;
         switch (mode) {
-            case 'off':
+            case 'reset':
+                mode = 'off';
                 nrf._irqOff();
                 nrf.reset(ready);
                 break;
+            case 'off':
+                nrf._irqOff();
+                process.nextTick(ready);
+                break;
             case 'tx':
+                ce.mode('low');
                 nrf.reset({PWR_UP:true,CRCO:null,ARD:null,ARC:null,RF_CH:null,RF_PWR:null,EN_DPL:null}, function () {
                     
                     nrf._irqOn();
                     ready();
                 });
             case 'rx':
-                //ce.value(true);
+                ce.mode('high');
             default:
                 // TODO: start any switch over, emit event when complete
         }
