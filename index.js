@@ -427,6 +427,31 @@ exports.connect = function (spi,ce,irq) {
         this._wantsRead = false;
         this._sendOpts = {};
         
+        var s = {},
+            n = pipe;
+        if (opts.noRX) {
+            s['ERX_P'+n] = false;
+        } else {
+            s['RX_ADDR_P'+n] = addr;
+            s['ERX_P'+n] = true;
+        }
+        if (opts.noRX) {
+            s['DPL_P'+n] = false;
+            s['ENAA_P'+n] = false;
+        } else if (this._size === 'auto') {
+            s['EN_DPL'] = true;     // TODO: can nrf just always set this?
+            s['DPL_P'+n] = true;
+            s['ENAA_P'+n] = true;   // must be set for DPL (…not sure why)
+        } else {
+            s['RX_PW_P'+n] = this._size;
+            s['DPL_P'+n] = false;
+            s['ENAA_P'+n] = opts.autoAck || false;
+        }
+        nrf.setStates(s, function (e) {
+            if (e) this.emit('error', e);
+            else this.emit('ready');
+        }.bind(this));
+        
         var irqHandler = this._rx.bind(this);
         nrf.addListener('interrupt', irqHandler);
         this.once('close', function () {
@@ -441,6 +466,8 @@ exports.connect = function (spi,ce,irq) {
         } catch (e) {
             process.nextTick(cb.bind(null, e));
         }
+        
+        // see p.75
         
         /*
         var acking = true,
@@ -470,13 +497,13 @@ exports.connect = function (spi,ce,irq) {
         this.emit('close');
     };
     
-    function PTX(addr,opts) {
+    function PTX(addr,opts) {               // opts: noRX
         opts = _extend({}, opts||{}, {size:'auto'});
         PxX.call(this, 0, addr, opts);
     }
     util.inherits(PTX, PxX);
     
-    function PRX(pipe, addr, opts) {
+    function PRX(pipe, addr, opts) {        // opts: size,autoAck
         PxX.call(this, pipe, addr, opts);
         this._sendOpts = {ackTo:pipe};
     }
