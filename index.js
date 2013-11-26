@@ -310,7 +310,7 @@ exports.connect = function (spi,ce,irq) {
         q(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
-            .defer(nrf.setStates, _extend({}, REGISTER_DEFAULTS, states))
+            .defer(nrf.setStates, states || REGISTER_DEFAULTS)
         .await(cb);
     };
     
@@ -338,37 +338,67 @@ exports.connect = function (spi,ce,irq) {
     
     
     var mode = 'off',
-        pipes = [];
+        pipes = [];   
+    function slotForAddr(addr) {
+        var slots = Array(6), aw = Math.max(3,Math.min(addr.length, 5));
+        pipes.forEach(function (pipe) { slot[pipe._pipe] = pipe._addr; });
+        if (slot[1]) aw = slot[1].length;       // address width already determined
+        if (addr.length === 1) {            // find a place in last four pipes
+            for (var i = 2; i < 6; ++i) if (!slot[i]) return i;
+            throw Error("No more final-byte listener addresses available!");
+        } else if (addr.length === aw) {    // use pipe 1 or 0
+            if (!slot[1]) return 1;
+            else if (!slot[0]) return 0;        // NOTE: using pipe 0 has caveats!
+            else throw Error("No more "+aw+"-byte listener addresses available!");
+        } else {
+            throw Error("Address 0x"+addr.toString(16)+" is of unsuitable width for use.");
+        }
+    }
     nrf.mode = function (newMode, cb) {
         if (arguments.length < 1) return mode;
         
-        mode = newMode;
+        mode = 'pending-'+newMode;
         pipes.forEach(function (pipe) { pipe.close(); });
         pipes.length = 0;
-        switch (mode) {
+        
+        var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true};
+        switch (newMode) {
             case 'reset':
-                mode = 'off';
+                newMode = 'off';
                 nrf._irqOff();
                 nrf.reset(ready);
                 break;
             case 'off':
                 nrf._irqOff();
-                process.nextTick(ready);
+                ce.mode('low');
+                nrf.setStates({PWR_UP:false}, ready);
                 break;
             case 'tx':
                 ce.mode('low');
-                nrf.reset({PWR_UP:true,CRCO:null,ARD:null,ARC:null,RF_CH:null,RF_PWR:null,EN_DPL:null}, function () {
-                    
+                nrf.reset(_extend({PWR_UP:true, PRIM_RX:false},clearIRQ), function (e) {
+                    if (e) return nrf.emit('error', e);
                     nrf._irqOn();
                     ready();
                 });
+                break;
             case 'rx':
-                ce.mode('high');
+                nrf.reset(_extend({PWR_UP:true, PRIM_RX:true, EN_RXADDR:0x00},clearIRQ), function (e) {
+                    if (e) return nrf.emit('error', e);
+                    ce.mode('high');
+                    nrf._irqOn();
+                    ready();
+                });
+                break;
             default:
                 // TODO: start any switch over, emit event when complete
         }
-        function ready() { nrf.emit('ready', mode); }
+        
+        function ready() {
+            mode = newMode;
+            nrf.emit('ready', mode);
+        }
         if (cb) nrf.once('ready', cb);
+        return this;
     };
     nrf.openPipe = function (addr, opts) {
         var pipe;
@@ -379,8 +409,8 @@ exports.connect = function (spi,ce,irq) {
                 pipe = new PTX(addr, opts);
                 break;
             case 'rx':
-                // TODO: choose radio pipe number
-                pipe = new PRX(addr, opts);
+                var s = slotForAddr(addr);
+                pipe = new PRX(s, addr, opts);
                 break;
             default:
                 throw Error("Unknown mode '"+mode="', cannot open pipe!");
