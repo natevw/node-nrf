@@ -39,8 +39,7 @@ function blockMicroseconds(us) {      // NOTE: setImmediate/process.nextTick too
 
 
 exports.connect = function (spi,ce,irq) {
-    var nrf = {},
-        evt = new events.EventEmitter(),
+    var nrf = new events.EventEmitter(),
         spi = SPI.initialize(spi),
         ce = GPIO.connect(ce),
         irq = (arguments.length > 2) && GPIO.connect(irq);
@@ -133,7 +132,6 @@ exports.connect = function (spi,ce,irq) {
                 var val = vals[iq.solo || iq.arr[0]],
                     buf = (Buffer.isBuffer(val)) ? val : [val];
                 nrf.execCommand(['W_REGISTER', reg], buf, cb);
-                
             } else nrf.execCommand(['R_REGISTER', reg], 1, function (e,d) {
                 if (e) return cb(e);
                 var val = 0;
@@ -156,7 +154,7 @@ exports.connect = function (spi,ce,irq) {
     };
     
     // expose:
-    // - low level interface (getStates, setStates, etc.)
+    // ✓ low level interface (execCommand, getStates, setStates, pulseCE, 'interrupt')
     // - mid level interface (channel, datarate, power, …)
     // - high level PRX (addrs)
     // - high level PTX (addr)
@@ -198,7 +196,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
             nrf.pulseCE();
-            evt.once('interrupt', function (d) {
+            nrf.once('interrupt', function (d) {
                 if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
                     finish(new Error("Packet timeout, transmit queue flushed."));
                 });
@@ -237,7 +235,7 @@ exports.connect = function (spi,ce,irq) {
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
             irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners
-                if (evt.listeners('interrupt').length) nrf._checkStatus(false);
+                if (nrf.listeners('interrupt').length) nrf._checkStatus(false);
             }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
         }
         irqOn = true;
@@ -274,8 +272,8 @@ exports.connect = function (spi,ce,irq) {
             default:
                 // TODO: start any switch over, emit event when complete
         }
-        function ready() { evt.emit('ready', mode); }
-        if (cb) evt.once('ready', cb);
+        function ready() { nrf.emit('ready', mode); }
+        if (cb) nrf.once('ready', cb);
     };
     nrf.openPipe = function (addr, opts) {
         var pipe;
@@ -361,8 +359,8 @@ exports.connect = function (spi,ce,irq) {
     
     nrf._checkStatus = function (irq) {
         nrf.getStates(['RX_P_NO','TX_DS','MAX_RT'], function (e,d) {
-            if (e) evt.emit('error', e);
-            else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) evt.emit('interrupt', d);
+            if (e) nrf.emit('error', e);
+            else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) nrf.emit('interrupt', d);
         });
     };
     
