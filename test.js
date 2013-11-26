@@ -1,8 +1,10 @@
+// see https://gist.github.com/natevw/5789019 for pins
+
 var NRF24 = require("./index"),
     spiDev = "/dev/spidev0.0",
-    cePin = 24;
+    cePin = 24, irqPin = 25;
 
-var nrf = NRF24.connect(spiDev, cePin);
+var nrf = NRF24.connect(spiDev, cePin, irqPin);
 
 /*
 nrf.setStates({RF_CH:42,PWR_UP:true}, function (e) {
