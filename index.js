@@ -39,6 +39,7 @@ function blockMicroseconds(us) {      // NOTE: setImmediate/process.nextTick too
 
 
 exports.connect = function (spi,ce,irq) {
+    var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
     var nrf = new events.EventEmitter(),
         spi = SPI.initialize(spi),
         ce = GPIO.connect(ce),
@@ -531,9 +532,10 @@ exports.connect = function (spi,ce,irq) {
     };
     
     nrf.printDetails = function () {        // for debugging, mimic e.g. https://github.com/stanleyseow/RF24/blob/master/librf24-rpi/librf24/RF24.cpp#L318
-        console.log("SPI device:\t",spiDev);
-        console.log("SPI speed:\t",'?');
-        console.log("CE GPIO:\t",cePin);
+        console.log("SPI device:\t",_spi);
+        //console.log("SPI speed:\t",'?');
+        console.log("CE GPIO:\t",_ce);
+        console.log("IRQ GPIO:\t",_irq);
         nrf.getStates(['STATUS','RX_DR','TX_DS','MAX_RT','RX_P_NO','TX_FULL'], function (e,d) {
             if (e) throw e;
             console.log("STATUS:\t\t",_h(d.STATUS[0]),'RX_DR='+d.RX_DR,'TX_DS='+d.TX_DS,'MAX_RT='+d.MAX_RT,'RX_P_NO='+d.RX_P_NO,'TX_FULL='+d.TX_FULL);
