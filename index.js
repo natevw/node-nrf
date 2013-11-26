@@ -29,7 +29,7 @@ function _extend(obj) {
     return obj;
 }
 
-function blockUS(us) {      // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
+function blockMicroseconds(us) {      // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
     var start = process.hrtime();
     while (1) {
         var diff = process.hrtime(start);
@@ -123,7 +123,7 @@ exports.connect = function (spi,ce,irq) {
     
     nrf.pulseCE = function () {
         ce.value(true);     // pulse for at least 10µs
-        blockUS(10);
+        blockMicroseconds(10);
         ce.value(false);
     };
     
