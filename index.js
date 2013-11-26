@@ -37,8 +37,6 @@ function blockMicroseconds(us) {      // NOTE: setImmediate/process.nextTick too
     }
 }
 
-//start = process.hrtime(), setMicrotimeout(function () { console.log(process.hrtime(start)[1]/1e3); }, 10)
-
 
 exports.connect = function (spi,ce,irq) {
     var nrf = {},
