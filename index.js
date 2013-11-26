@@ -272,6 +272,7 @@ exports.connect = function (spi,ce,irq) {
     
     // caller must set up any prerequisites (i.e. TX addr) and ensure no other send is pending
     nrf.sendPayload = function (data, opts, cb) {
+        nrf._prevSender = null;     // help PxX setup again if user sends data directly
         if (data.length > 32) throw Error("Maximum packet size exceeded. Smaller writes, Dash!");
         
         var cmd;
@@ -462,7 +463,6 @@ exports.connect = function (spi,ce,irq) {
     util.inherits(PxX, stream.Duplex);
     PxX.prototype._write = function (buff, _enc, cb) {
         var s = {};         // see p.75
-        // TODO: avoid this setup if already done!
         if (!this._sendOpts.ackTo) {
             s['TX_ADDR'] = this._addr;
             s['PRIM_RX'] = false;
@@ -470,10 +470,12 @@ exports.connect = function (spi,ce,irq) {
         if (!this._sendOpts.noAck) {
             s['RX_ADDR_P0'] = this._addr;
         }
-        nrf.setStates(s, function (e) {
+        if (nrf._prevSender === this) s = {};
+        nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             try {
                 nrf.sendPayload(buff, this._sendOpts, cb);
+                nrf._prevSender = this;    // maybe we can avoid setting state next time
             } catch (e) {
                 cb(e);
             }
