@@ -73,6 +73,7 @@ exports.connect = function (spi,ce,irq) {
         
 console.log('spi.transfer', writeBuf, readLen);
         spi.transfer(writeBuf, readLen && readLen+1, function (e,d) {
+console.log(' result:', d, e);
             if (e) return cb(e);
             else return cb(null, d && d.slice(1));
         });
