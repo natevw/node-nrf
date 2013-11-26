@@ -361,7 +361,8 @@ exports.connect = function (spi,ce,irq) {
         pipes.forEach(function (pipe) { pipe.close(); });
         pipes.length = 0;
         
-        var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true};
+        var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
+            features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
         switch (newMode) {
             case 'reset':
                 newMode = 'off';
@@ -375,14 +376,14 @@ exports.connect = function (spi,ce,irq) {
                 break;
             case 'tx':
                 ce.mode('low');
-                nrf.reset(_extend({PWR_UP:true, PRIM_RX:false},clearIRQ), function (e) {
+                nrf.reset(_extend({PWR_UP:true, PRIM_RX:false},clearIRQ,features), function (e) {
                     if (e) return nrf.emit('error', e);
                     nrf._irqOn();
                     ready();
                 });
                 break;
             case 'rx':
-                nrf.reset(_extend({PWR_UP:true, PRIM_RX:true, EN_RXADDR:0x00},clearIRQ), function (e) {
+                nrf.reset(_extend({PWR_UP:true, PRIM_RX:true, EN_RXADDR:0x00},clearIRQ,features), function (e) {
                     if (e) return nrf.emit('error', e);
                     ce.mode('high');
                     nrf._irqOn();
@@ -390,7 +391,7 @@ exports.connect = function (spi,ce,irq) {
                 });
                 break;
             default:
-                // TODO: start any switch over, emit event when complete
+                throw Error("Unknown mode '"+newMode+"'!");
         }
         
         function ready() {
@@ -427,8 +428,6 @@ exports.connect = function (spi,ce,irq) {
         this._wantsRead = false;
         this._sendOpts = {};
         
-        // TODO: EN_ACK_PAY/EN_DYN_ACK somewhere
-        
         var s = {},
             n = pipe;
         if (opts.noRX) {
@@ -442,7 +441,6 @@ exports.connect = function (spi,ce,irq) {
             s['DPL_P'+n] = false;
             s['ENAA_P'+n] = false;
         } else if (this._size === 'auto') {
-            s['EN_DPL'] = true;     // TODO: can nrf just always set this?
             s['ENAA_P'+n] = true;   // must be set for DPL (…not sure why)
             s['DPL_P'+n] = true;
         } else {
@@ -463,23 +461,23 @@ exports.connect = function (spi,ce,irq) {
     }
     util.inherits(PxX, stream.Duplex);
     PxX.prototype._write = function (buff, _enc, cb) {
-        // TODO: handle shared transmissions (but don't set RX_ADDR_P0 if simplex/no-ack)
-        try {
-            nrf.sendPayload(buff, this._sendOpts, cb);
-        } catch (e) {
-            process.nextTick(cb.bind(null, e));
+        var s = {};         // see p.75
+        // TODO: avoid this setup if already done!
+        if (!this._sendOpts.ackTo) {
+            s['TX_ADDR'] = this._addr;
+            s['PRIM_RX'] = false;
         }
-        
-        // see p.75
-        
-        /*
-        var acking = true,
-            states = {TX_ADDR:this._addr, PRIM_RX:false};
-        if (acking) states.RX_ADDR_P0 = states.TX_ADDR;
-        nrf.setStates(states, function (e) {
+        if (!this._sendOpts.noAck) {
+            s['RX_ADDR_P0'] = this._addr;
+        }
+        nrf.setStates(s, function (e) {
             if (e) return cb(e);
+            try {
+                nrf.sendPayload(buff, this._sendOpts, cb);
+            } catch (e) {
+                cb(e);
+            }
         });
-        */
     };
     PxX.prototype._rx = function (d) {
         if (d.RX_P_NO !== this._pipe) return;
@@ -500,9 +498,10 @@ exports.connect = function (spi,ce,irq) {
         this.emit('close');
     };
     
-    function PTX(addr,opts) {               // opts: size,noRX,noAck?
+    function PTX(addr,opts) {               // opts: size,noRX,noAck
         opts = _extend({}, opts||{}, {size:'auto'});
         PxX.call(this, 0, addr, opts);
+        this._sendOpts = {noAck:(opts.noRX||opts.noAck)};
     }
     util.inherits(PTX, PxX);
     
