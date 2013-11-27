@@ -481,7 +481,7 @@ exports.connect = function (spi,ce,irq) {
             s['TX_ADDR'] = this._addr;
             s['PRIM_RX'] = false;
             if (this._sendOpts.ack) {
-                s['RX_ADDR_P0'] = this._addr;
+                s['RX_ADDR_P0'] = this._addr;       // TODO: this/RX_DR and CE pin are the only things that conflict with simultaneous PRX usage
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
             }
