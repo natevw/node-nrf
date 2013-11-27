@@ -443,8 +443,8 @@ exports.connect = function (spi,ce,irq) {
         
         var s = {},
             n = pipe;
-        if (opts._rx) {
-            if (addr.length > 1) s['AW'] = addr.length;
+        if (addr.length > 1) s['AW'] = addr.length;
+        if (opts._enableRX) {
             s['RX_ADDR_P'+n] = addr;
             s['ERX_P'+n] = true;
         } else {
@@ -473,12 +473,12 @@ exports.connect = function (spi,ce,irq) {
     PxX.prototype._write = function (buff, _enc, cb) {      // see p.75
         var s = {};
         if (this._sendOpts.asAckTo || nrf._prevSender === this) {
-            // no setup needed
+            // no states setup needed
         } else {
             s['TX_ADDR'] = this._addr;
             s['PRIM_RX'] = false;
-            if (this.opts._rx) s['RX_ADDR_P0'] = this._addr;
             if (this._sendOpts.ack) {
+                s['RX_ADDR_P0'] = this._addr;
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
             }
@@ -516,15 +516,15 @@ exports.connect = function (spi,ce,irq) {
     
     function PTX(addr,opts) {
         opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
-        opts._rx = opts.autoAck || opts.ackPayloads;
+        opts._enableRX = (opts.autoAck || opts.ackPayloads);
         PxX.call(this, 0, addr, opts);
-        _extend(this._sendOpts, {ack:opts._rx});
+        _extend(this._sendOpts, {ack:opts._enableRX});
     }
     util.inherits(PTX, PxX);
     
     function PRX(pipe, addr, opts) {
         opts = _extend({size:'auto',autoAck:true}, opts);
-        opts._rx = true;
+        opts._enableRX = true;
         PxX.call(this, pipe, addr, opts);
         _extend(this._sendOpts, {ack:false, asAckTo:pipe});
     }
