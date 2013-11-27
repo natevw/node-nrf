@@ -308,13 +308,13 @@ exports.connect = function (spi,ce,irq) {
     nrf.reset = function (states, cb) {
         if (arguments.length < 2) {
             cb = states;
-            states = {};
+            states = REGISTER_DEFAULTS;
         }
         ce.mode('low');
         q(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
-            .defer(nrf.setStates, states || REGISTER_DEFAULTS)
+            .defer(nrf.setStates, states)
         .await(cb);
     };
     
