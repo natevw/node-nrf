@@ -25,7 +25,9 @@ TimeStream.prototype._read = function () {
 
 nrf.channel(0x4c, function () {}).mode('tx', function () {
     var tx = nrf.openPipe(pipes[0]);
-    (new TimeStream).pipe(tx);
+    tx.on('ready', function () {
+        (new TimeStream).pipe(tx);
+    });
 });
 
 
