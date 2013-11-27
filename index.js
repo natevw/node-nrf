@@ -288,6 +288,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
             nrf.pulseCE();
+            // TODO: if _sendOpts.ackTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
             nrf.once('interrupt', function (d) {
                 if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
                     finish(new Error("Packet timeout, transmit queue flushed."));
@@ -386,7 +387,7 @@ exports.connect = function (spi,ce,irq) {
                 break;
             case 'tx':
                 ce.mode('low');
-                nrf.reset(_extend({PWR_UP:true, PRIM_RX:false},clearIRQ,features), function (e) {
+                nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
                     if (e) return nrf.emit('error', e);
                     nrf._irqOn();
                     ready();
@@ -424,7 +425,7 @@ exports.connect = function (spi,ce,irq) {
                 pipe = new PRX(s, addr, opts);
                 break;
             default:
-                throw Error("Unknown mode '"+mode="', cannot open pipe!");
+                throw Error("Unknown mode '"+mode+"', cannot open pipe!");
         }
         pipes.push(pipe);
         return pipe;
@@ -433,31 +434,29 @@ exports.connect = function (spi,ce,irq) {
     
     function PxX(pipe, addr, opts) {           // base for PTX/PRX
         stream.Duplex.call(this);
+        this.opts = opts;
         this._pipe = pipe;
         this._addr = addr;
-        this._size = opts.size || 'auto';
+        this._size = opts.size;
         this._wantsRead = false;
         this._sendOpts = {};
         
         var s = {},
             n = pipe;
-        if (opts.noRX) {
-            s['ERX_P'+n] = false;
-        } else {
-            if (addr.length > 1) s['AW'] = addr.length;     // slotForAddr ensures consistency with others
+        if (opts._rx) {
+            if (addr.length > 1) s['AW'] = addr.length;
             s['RX_ADDR_P'+n] = addr;
             s['ERX_P'+n] = true;
+        } else {
+            s['ERX_P'+n] = false;
         }
-        if (opts.noRX) {
-            s['DPL_P'+n] = false;
-            s['ENAA_P'+n] = false;
-        } else if (this._size === 'auto') {
+        if (opts.size === 'auto') {
             s['ENAA_P'+n] = true;   // must be set for DPL (…not sure why)
             s['DPL_P'+n] = true;
         } else {
             s['RX_PW_P'+n] = this._size;
+            s['ENAA_P'+n] = opts.autoAck;
             s['DPL_P'+n] = false;
-            s['ENAA_P'+n] = opts.autoAck || false;
         }
         nrf.setStates(s, function (e) {
             if (e) this.emit('error', e);
@@ -471,31 +470,31 @@ exports.connect = function (spi,ce,irq) {
         });
     }
     util.inherits(PxX, stream.Duplex);
-    PxX.prototype._write = function (buff, _enc, cb) {
-        var s = {};         // see p.75
-        if (!this._sendOpts.ackTo) {
+    PxX.prototype._write = function (buff, _enc, cb) {      // see p.75
+        var s = {};
+        if (this._sendOpts.ackTo || nrf._prevSender === this) {
+            // no setup needed
+        } else {
             s['TX_ADDR'] = this._addr;
             s['PRIM_RX'] = false;
+            if (this.opts._rx) s['RX_ADDR_P0'] = this._addr;
         }
-        if (!this._sendOpts.noAck) {
-            s['RX_ADDR_P0'] = this._addr;
-        }
-        if (nrf._prevSender === this) s = {};
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             try {
+                // TODO: need to avoid a setStates race condition with any other PTX!
                 nrf.sendPayload(buff, this._sendOpts, cb);
-                nrf._prevSender = this;    // maybe we can avoid setting state next time
+                nrf._prevSender = this;    // we might avoid setting state next time
             } catch (e) {
                 cb(e);
             }
-        });
+        }.bind(this));
     };
     PxX.prototype._rx = function (d) {
         if (d.RX_P_NO !== this._pipe) return;
         if (!this._wantsRead) return;           // NOTE: this could starve other RX pipes!
         
-        if (this._wantsRead) nrf.readPayload({width:this._size}, function (e,d) {
+        nrf.readPayload({width:this._size}, function (e,d) {
             if (e) this.emit('error', e);
             else this._wantsRead = this.push(d);
             nrf._checkStatus(false);         // see footnote c, p.63
@@ -510,16 +509,19 @@ exports.connect = function (spi,ce,irq) {
         this.emit('close');
     };
     
-    function PTX(addr,opts) {               // opts: size,noRX,noAck
-        opts = _extend({}, opts||{}, {size:'auto'});
+    function PTX(addr,opts) {       // TODO: move ARD/ARC into PTX
+        opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
+        opts._rx = opts.autoAck || opts.ackPayloads;
         PxX.call(this, 0, addr, opts);
-        this._sendOpts = {noAck:(opts.noRX||opts.noAck)};
+        _extend(this._sendOpts, {noAck:!opts._rx});
     }
     util.inherits(PTX, PxX);
     
-    function PRX(pipe, addr, opts) {        // opts: size,autoAck
+    function PRX(pipe, addr, opts) {
+        opts = _extend({size:'auto',autoAck:true}, opts);
+        opts._rx = true;
         PxX.call(this, pipe, addr, opts);
-        this._sendOpts = {ackTo:pipe};
+        _extend(this._sendOpts, {ackTo:pipe});
     }
     util.inherits(PRX, PxX);
     
