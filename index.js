@@ -139,6 +139,7 @@ console.log('setStates', vals);
                     val &= ~m.mask;        // clear current value
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
+                // TODO: (optimization) don't write if it hasn't changed
                 nrf.execCommand(['W_REGISTER', reg], [val], cb);
             });
         }
