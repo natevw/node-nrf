@@ -46,6 +46,7 @@ exports.connect = function (spi,ce,irq) {
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
+console.log('execCommand', cmd, data);
         if (typeof data === 'function') {
             cb = data;
             data = 0;
@@ -119,11 +120,13 @@ exports.connect = function (spi,ce,irq) {
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
+console.log('gotStates', states, e);
             cb(e,states);
         });
     };
     
     nrf.setStates = function (vals, cb) {
+console.log('setStates', vals);
         var registersNeeded = registersForMnemonics(Object.keys(vals));
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
@@ -152,7 +155,9 @@ exports.connect = function (spi,ce,irq) {
         ce.value(true);     // pulse for at least 10µs
         blockMicroseconds(10);
         ce.value(false);
+console.log('pulsed ce');
     };
+nrf.on('interrupt', function (d) { console.log("IRQ.", d); });
     
     // ✓ low level interface (execCommand, getStates, setStates, pulseCE, 'interrupt')
     // ✓ mid level interface (channel, dataRate, power, crcBytes, autoRetransmit{count,delay})
@@ -365,7 +370,7 @@ exports.connect = function (spi,ce,irq) {
             throw Error("Address 0x"+addr.toString(16)+" is of unsuitable width for use.");
         }
     }
-    nrf.mode = function (newMode, cb) {
+    nrf.mode = function (newMode, cb) {             // TODO: get rid of this. turn radio+irq on while any tx or rx pipe(s) open.
         if (arguments.length < 1) return mode;
         
         mode = 'pending-'+newMode;
