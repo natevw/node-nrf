@@ -10,15 +10,9 @@ var COMMANDS = require("./magicnums").COMMANDS,
     REGISTER_DEFAULTS = require("./magicnums").REGISTER_DEFAULTS;
 
 function forEachWithCB(fn, cb) {
-    var arr = this,
-        i = 0, len = arr.length;
-    (function proceed() {
-        if (i === len) cb(null);
-        else fn(arr[i++], function (e) {
-            if (e) cb(e);
-            else proceed();
-        });
-    })();
+    var process = q(1);
+    this.forEach(function (d) { process.defer(fn, d); });
+    process.awaitAll(cb);
 };
 
 function _extend(obj) {
