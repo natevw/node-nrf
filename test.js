@@ -19,3 +19,23 @@ nrf.setStates({RF_CH:42,PWR_UP:true}, function (e) {
 
 nrf.printDetails();
 
+
+var pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2];
+
+
+var stream = require('stream'),
+    util = require('util');
+
+function TimeStream(ms) {
+    stream.Readable.call(this);
+}
+util.inherits(TimeStream, stream.Readable);
+TimeStream.prototype._read = function () {
+console.log("pushing time");
+    this.push(new Date().toISOString());
+};
+
+var tx = nrf.channel(0x4c).mode('tx').openPipe(pipes[0]);
+(new TimeStream).pipe(tx);
+
+
