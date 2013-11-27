@@ -5,8 +5,8 @@ var NRF24 = require("./index"),
     cePin = 24, irqPin = 25;
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
-nrf.printDetails();
-nrf.reset(function () {});
+//nrf.printDetails();
+//nrf.reset(function () {});
 
 
 var pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2];
