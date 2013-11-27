@@ -418,11 +418,11 @@ exports.connect = function (spi,ce,irq) {
             case 'off':
                 throw Error("Radio must be in transmit or receive mode to open a pipe.");
             case 'tx':
-                pipe = new PTX(addr, opts);
+                pipe = new PTX(addr, opts||{});
                 break;
             case 'rx':
                 var s = slotForAddr(addr);
-                pipe = new PRX(s, addr, opts);
+                pipe = new PRX(s, addr, opts||{});
                 break;
             default:
                 throw Error("Unknown mode '"+mode+"', cannot open pipe!");
