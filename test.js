@@ -35,7 +35,7 @@ console.log("pushing time");
     this.push(new Date().toISOString());
 };
 
-nrf.channel(0x4c).mode('tx', function () {
+nrf.channel(0x4c, function () {}).mode('tx', function () {
     var tx = nrf.openPipe(pipes[0]);
     (new TimeStream).pipe(tx);
 });
