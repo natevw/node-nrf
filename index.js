@@ -161,6 +161,7 @@ nrf.on('interrupt', function (d) { console.log("IRQ.", d); });
     // - test!
     // - document
     
+    // TODO: straighten out this portion of the API, these encourage chaining but also require callback.
     nrf.channel = function (val, cb) {
         if (arguments.length < 2) {
             cb = val;
