@@ -7,6 +7,7 @@ var NRF24 = require("./index"),
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 //nrf.printDetails();
 //nrf.reset(function () {});
+//var ce = require("./gpio").connect(cePin),
 
 
 var pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2];

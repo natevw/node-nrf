@@ -132,7 +132,7 @@ console.log('setStates', vals);
                 nrf.execCommand(['W_REGISTER', reg], buf, cb);
             } else nrf.execCommand(['R_REGISTER', reg], 1, function (e,d) {
                 if (e) return cb(e);
-                var val = 0;
+                var val = d[0];
                 if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
