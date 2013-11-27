@@ -46,11 +46,11 @@ exports.connect = function (spi,ce,irq) {
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
-console.log('execCommand', cmd, data);
         if (typeof data === 'function') {
             cb = data;
             data = 0;
         }
+console.log('execCommand', cmd, data);
         
         var cmdByte;
         if (typeof cmd === 'string') {
