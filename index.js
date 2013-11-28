@@ -44,7 +44,7 @@ exports.connect = function (spi,ce,irq) {
             cb = data;
             data = 0;
         }
-console.log('execCommand', cmd, data);
+        if (nrf._debug) console.log('execCommand', cmd, data);
         
         var cmdByte;
         if (typeof cmd === 'string') {
@@ -114,13 +114,13 @@ console.log('execCommand', cmd, data);
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
-console.log('gotStates', states, e);
+            if (nrf._debug) console.log('gotStates', states, e);
             cb(e,states);
         });
     };
     
     nrf.setStates = function (vals, cb) {
-console.log('setStates', vals);
+        if (nrf._debug) console.log('setStates', vals);
         var registersNeeded = registersForMnemonics(Object.keys(vals));
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
@@ -139,8 +139,8 @@ console.log('setStates', vals);
                     val &= ~m.mask;        // clear current value
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
-                // TODO: (optimization) don't write if it hasn't changed
-                nrf.execCommand(['W_REGISTER', reg], [val], cb);
+                if (val !== d[0]) nrf.execCommand(['W_REGISTER', reg], [val], cb);
+                else cb(null);  // don't bother writing if value hasn't changed
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
@@ -150,9 +150,9 @@ console.log('setStates', vals);
         ce.value(true);     // pulse for at least 10µs
         blockMicroseconds(10);
         ce.value(false);
-console.log('pulsed ce');
+        if (nrf._debug) console.log('pulsed ce');
     };
-nrf.on('interrupt', function (d) { console.log("IRQ.", d); });
+    nrf.on('interrupt', function (d) { if (nrf._debug) console.log("IRQ.", d); });
     
     // ✓ low level interface (execCommand, getStates, setStates, pulseCE, 'interrupt')
     // ✓ mid level interface (channel, dataRate, power, crcBytes, autoRetransmit{count,delay})
