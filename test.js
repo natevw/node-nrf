@@ -6,7 +6,6 @@ var NRF24 = require("./index"),
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf.printDetails();
-nrf._debug = true;
 
 //nrf.reset(function () {});
 //var ce = require("./gpio").connect(cePin),
@@ -27,6 +26,7 @@ TimeStream.prototype._read = function () {
 };
 
 setTimeout(function () {
+    nrf._debug = true;
     function _nop() {};
     nrf.channel(0x4c, _nop).dataRate('1Mbps', _nop).crcBytes(2,_nop).mode('tx', function () {
         var tx = nrf.openPipe(pipes[0]);
