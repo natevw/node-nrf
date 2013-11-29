@@ -526,7 +526,8 @@ exports.connect = function (spi,ce,irq) {
         });
     };
     
-    nrf.printDetails = function () {        // for debugging, mimic e.g. https://github.com/stanleyseow/RF24/blob/master/librf24-rpi/librf24/RF24.cpp#L318
+    nrf.printDetails = function (cb) {        // for debugging, mimic e.g. https://github.com/stanleyseow/RF24/blob/master/librf24-rpi/librf24/RF24.cpp#L318
+        if (!cb) cb = _nop;
         console.log("SPI device:\t",_spi);
         //console.log("SPI speed:\t",'?');
         console.log("CE GPIO:\t",_ce);
@@ -554,12 +555,6 @@ exports.connect = function (spi,ce,irq) {
                         nrf.getStates(['RF_DR_LOW','RF_DR_HIGH','EN_CRC','CRCO','RF_PWR'], function (e,d) {
                             var isPlus = false,
                                 pwrs = ('compat') ? ["PA_MIN", "PA_LOW", "PA_HIGH", "PA_MAX"] : ["-18dBm","-12dBm","-6dBm","0dBm"];
-                            function logFinalDetails() {
-                                console.log("Data Rate:\t", (d.RF_DR_LOW) ? "250kbps" : ((d.RF_DR_HIGH) ? "2Mbps" : "1Mbps"));
-                                console.log("Model:\t\t", (isPlus) ? "nRF24L01+" : "nRF24L01");
-                                console.log("CRC Length:\t", (d.EN_CRC) ? ((d.CRCO) ? "16 bits" : "8 bits") : "Disabled");
-                                console.log("PA Power:\t", pwrs[d.RF_PWR]);
-                            }
                             if (d.RF_DR_LOW) {      // if set, we already know and don't need to check by toggling
                                 isPlus = true;
                                 logFinalDetails();
@@ -573,6 +568,13 @@ exports.connect = function (spi,ce,irq) {
                                     });
                                 });
                             });
+                            function logFinalDetails() {
+                                console.log("Data Rate:\t", (d.RF_DR_LOW) ? "250kbps" : ((d.RF_DR_HIGH) ? "2Mbps" : "1Mbps"));
+                                console.log("Model:\t\t", (isPlus) ? "nRF24L01+" : "nRF24L01");
+                                console.log("CRC Length:\t", (d.EN_CRC) ? ((d.CRCO) ? "16 bits" : "8 bits") : "Disabled");
+                                console.log("PA Power:\t", pwrs[d.RF_PWR]);
+                                cb();
+                            }
                         });
                     });
                 });

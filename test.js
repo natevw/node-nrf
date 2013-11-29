@@ -20,14 +20,17 @@ TimeStream.prototype._read = function () {
 
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
+nrf._debug = true;
 nrf.channel(0x4c).dataRate('1Mbps').crcBytes(2).begin(function () {
     var tx = nrf.openPipe('tx', pipes[0], {autoAck:true});
     tx.on('ready', function () {
-        nrf.printDetails();
-        //(new TimeStream).pipe(tx);
-        setInterval(function () {
+        nrf._debug = false;
+        nrf.printDetails(function () {
             nrf._debug = true;
-            tx.write('zyxa');
-        }, 1e3);
+            //(new TimeStream).pipe(tx);
+            setInterval(function () {
+                tx.write('zyxa');
+            }, 1e3);
+        });
     });
 });
