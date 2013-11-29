@@ -69,6 +69,7 @@ exports.connect = function (spi,ce,irq) {
         }
         
         spi.transfer(writeBuf, readLen && readLen+1, function (e,d) {
+            if (nrf._debug && readLen) conosole.log(' - exec read:', d);
             if (e) return cb(e);
             else return cb(null, d && d.slice(1));
         });
