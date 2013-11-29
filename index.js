@@ -164,6 +164,15 @@ exports.connect = function (spi,ce,irq) {
     // - test!
     // - document
     
+    
+    nrf.powerUp = function (val, cb) {
+        if (typeof val === 'function' || typeof val === 'undefined') {
+            cb = val || _nop;
+            nrf.getStates(['PWR_UP'], function (e,d) { cb(e, d && !!d.PWR_UP); });
+        } else nrf.setStates({PWR_UP:val}, cb);
+        return this;
+    };
+    
     nrf.channel = function (val, cb) {
         if (typeof val === 'function' || typeof val === 'undefined') {
             cb = val || _nop;
@@ -200,7 +209,7 @@ exports.connect = function (spi,ce,irq) {
         return this;
     };
     
-    nrf.power = function (val, cb) {            // TODO: rename and add powerUp as well
+    nrf.transmitPower = function (val, cb) {                    // TODO: allow specifying per-PTX?
         var vals = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];
         if (typeof val === 'function' || typeof val === 'undefined') {
             cb = val || _nop;
