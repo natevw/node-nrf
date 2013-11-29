@@ -26,6 +26,7 @@ nrf.channel(0x4c).dataRate('1Mbps').crcBytes(2).begin(function () {
         nrf.printDetails();
         //(new TimeStream).pipe(tx);
         setInterval(function () {
+            nrf._debug = true;
             tx.write('zyxa');
         }, 1e3);
     });
