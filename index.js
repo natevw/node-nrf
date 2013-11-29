@@ -399,9 +399,9 @@ exports.connect = function (spi,ce,irq) {
         });
     };
     function slotForAddr(addr) {
-        var slots = Array(6), aw = Math.max(3,Math.min(addr.length, 5));
+        var slot = Array(6), aw = Math.max(3,Math.min(addr.length, 5));
         rxPipes.forEach(function (pipe) { slot[pipe._pipe] = pipe._addr; });
-        if (slot[1]) aw = slots[1].length;       // address width already determined
+        if (slot[1]) aw = slot[1].length;       // address width already determined
         if (addr.length === 1) {            // find a place in last four pipes
             for (var i = 2; i < 6; ++i) if (!slot[i]) return i;
             throw Error("No more final-byte listener addresses available!");
