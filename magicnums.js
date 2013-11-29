@@ -57,7 +57,7 @@ exports.REGISTER_MAP = {
     PLL_LOCK:       [0x06,4],
     RF_DR_HIGH:     [0x06,3],
     RF_PWR:         [0x06,1,2],
-    LNA_HCURR:      [0x06,0],
+    LNA_HCURR:      [0x06,0],       // NOTE: this is obsolete on the nRF24L01+ model
 /* STATUS */
     STATUS:         [0x07],
     RX_DR:          [0x07,6],
@@ -115,7 +115,7 @@ exports.REGISTER_DEFAULTS = {
     SETUP_AW:   _b('0000 0011'),
     SETUP_RETR: _b('0000 0011'),
     RF_CH:      _b('0000 0010'),
-    RF_SETUP:   _b('0000 1110'),
+    RF_SETUP:   _b('0000 1111'),
     STATUS:     _b('0111 1110'),
     RX_ADDR_P0: Buffer("E7E7E7E7E7", 'hex'),
     RX_ADDR_P1: Buffer("C2C2C2C2C2", 'hex'),
