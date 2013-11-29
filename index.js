@@ -411,7 +411,7 @@ exports.connect = function (spi,ce,irq) {
             pipe = new PTX(addr, opts);
             txPipes.push(pipe);
         } else {
-            throw Error("Unknown pipe mode '"+rx_tx"', must be 'rx' or 'tx'.");
+            throw Error("Unknown pipe mode '"+rx_tx+"', must be 'rx' or 'tx'.");
         }
         return pipe;
     };
