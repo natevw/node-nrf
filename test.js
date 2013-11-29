@@ -35,7 +35,7 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).begin(fu
         });
     });
 */
-    var rx = nrf.openPipe('rx', pipes[1]);
+    var rx = nrf.openPipe('rx', pipes[0]);
     rx.on('data', function (d) {
         console.log("Got data", d);
     });
