@@ -198,7 +198,7 @@ exports.connect = function (spi,ce,irq) {
         return this;
     };
     
-    nrf.power = function (val, cb) {
+    nrf.power = function (val, cb) {            // TODO: rename and add powerUp as well
         var vals = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];
         if (arguments.length < 2) {
             cb = val;
@@ -348,12 +348,36 @@ exports.connect = function (spi,ce,irq) {
         irqOn = false;
     };
     
-    
-    var mode = 'off',
-        pipes = [];   
+    var ready = false,
+        txPipes = [],
+        rxPipes = [];
+    nrf.begin = function (cb) {
+        ce.mode('low');
+        var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
+            features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
+        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
+            if (e) return nrf.emit('error', e);
+            nrf._irqOn();           // TODO: wait until pipe open?
+            ready = true;
+            nrf.emit('ready', mode);
+        });
+        if (cb) nrf.once('ready', cb);
+    };
+    nrf.end = function (cb) {
+        var pipes = txPipes.concat(rxPipes);
+        pipes.forEach(function (pipe) { pipe.close(); });
+        txPipes.length = rxPipes.length = 0;
+        ready = false;
+        nrf._irqOff();
+        ce.mode('low');
+        nrf.setStates({PWR_UP:false}, function (e) {
+            if (e) nrf.emit('error', e);
+            else if (cb) cb();
+        });
+    };
     function slotForAddr(addr) {
         var slots = Array(6), aw = Math.max(3,Math.min(addr.length, 5));
-        pipes.forEach(function (pipe) { slot[pipe._pipe] = pipe._addr; });
+        rxPipes.forEach(function (pipe) { slot[pipe._pipe] = pipe._addr; });
         if (slot[1]) aw = slot[1].length;       // address width already determined
         if (addr.length === 1) {            // find a place in last four pipes
             for (var i = 2; i < 6; ++i) if (!slot[i]) return i;
@@ -366,75 +390,24 @@ exports.connect = function (spi,ce,irq) {
             throw Error("Address 0x"+addr.toString(16)+" is of unsuitable width for use.");
         }
     }
-    nrf.mode = function (newMode, cb) {             // TODO: get rid of this. turn radio+irq on while any tx or rx pipe(s) open.
-        if (arguments.length < 1) return mode;
-        
-        mode = 'pending-'+newMode;
-        pipes.forEach(function (pipe) { pipe.close(); });
-        pipes.length = 0;
-        
-        var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
-            features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
-        switch (newMode) {
-            case 'reset':
-                newMode = 'off';
-                nrf._irqOff();
-                nrf.reset(ready);
-                break;
-            case 'off':
-                nrf._irqOff();
-                ce.mode('low');
-                nrf.setStates({PWR_UP:false}, ready);
-                break;
-            case 'tx':
-                ce.mode('low');
-                nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
-                    if (e) return nrf.emit('error', e);
-                    nrf._irqOn();
-                    ready();
-                });
-                break;
-            case 'rx':
-                nrf.reset(_extend({PWR_UP:true, PRIM_RX:true, EN_RXADDR:0x00},clearIRQ,features), function (e) {
-                    if (e) return nrf.emit('error', e);
-                    ce.mode('high');
-                    nrf._irqOn();
-                    ready();
-                });
-                break;
-            default:
-                throw Error("Unknown mode '"+newMode+"'!");
-        }
-        
-        function ready() {
-            mode = newMode;
-            nrf.emit('ready', mode);
-        }
-        if (cb) nrf.once('ready', cb);
-        return this;
-    };
-    nrf.openPipe = function (addr, opts) {
+    nrf.openPipe = function (rx_tx, addr, opts) {
+        if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
         if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');
         opts || (opts = {});
         
         var pipe;
-        switch (mode) {
-            case 'off':
-                throw Error("Radio must be in transmit or receive mode to open a pipe.");
-            case 'tx':
-                pipe = new PTX(addr, opts);
-                break;
-            case 'rx':
-                var s = slotForAddr(addr);
-                pipe = new PRX(s, addr, opts);
-                break;
-            default:
-                throw Error("Unknown mode '"+mode+"', cannot open pipe!");
+        if (rx_tx === 'rx') {
+            var s = slotForAddr(addr);
+            pipe = new PRX(s, addr, opts);
+            rxPipes.push(pipe);
+        } else if (rx_tx === 'tx') {
+            pipe = new PTX(addr, opts);
+            txPipes.push(pipe);
+        } else {
+            throw Error("Unknown pipe mode '"+rx_tx"', must be 'rx' or 'tx'.");
         }
-        pipes.push(pipe);
         return pipe;
     };
-    
     
     function PxX(pipe, addr, opts) {           // base for PTX/PRX
         stream.Duplex.call(this);
@@ -448,6 +421,10 @@ exports.connect = function (spi,ce,irq) {
         var s = {},
             n = pipe;
         if (addr.length > 1) s['AW'] = addr.length;
+        if (opts._primRX) {
+            ce.mode('high');
+            s['PRIM_RX'] = true;
+        }
         if (opts._enableRX) {
             s['RX_ADDR_P'+n] = addr;
             s['ERX_P'+n] = true;
@@ -474,7 +451,11 @@ exports.connect = function (spi,ce,irq) {
         });
     }
     util.inherits(PxX, stream.Duplex);
-    PxX.prototype._write = function (buff, _enc, cb) {      // see p.75
+    PxX.prototype._write = function (buff, _enc, cb) {
+        // TODO: need to coordinate with TX (and any RX on pipe 0)
+        this._tx(buff,cb);
+    };
+    PxX.prototype._tx = function (data, cb) {      // see p.75
         var s = {};
         if (this._sendOpts.asAckTo || nrf._prevSender === this) {
             // no states setup needed
@@ -491,14 +472,13 @@ exports.connect = function (spi,ce,irq) {
             if (e) return cb(e);
             try {
                 // TODO: need to avoid a setStates race condition with any other PTX!
-                nrf.sendPayload(buff, this._sendOpts, cb);
+                nrf.sendPayload(data, this._sendOpts, cb);
                 nrf._prevSender = this;    // we might avoid setting state next time
             } catch (e) {
                 cb(e);
             }
         }.bind(this));
     };
-    
     PxX.prototype._rx = function (d) {
         if (d.RX_P_NO !== this._pipe) return;
         if (!this._wantsRead) return;           // NOTE: this could starve other RX pipes!
