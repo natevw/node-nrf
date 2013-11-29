@@ -39,8 +39,13 @@ exports.connect = function (spi,ce,irq) {
         ce = GPIO.connect(ce),
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
+    function _nop() {}
+    
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
-        if (typeof data === 'function') {
+        if (arguments.length === 1) {
+            data = 0;
+            cb = _nop;
+        } else if (typeof data === 'function') {
             cb = data;
             data = 0;
         }
@@ -121,6 +126,7 @@ exports.connect = function (spi,ce,irq) {
     
     nrf.setStates = function (vals, cb) {
         if (nrf._debug) console.log('setStates', vals);
+        if (!cb) cb = _nop;
         var registersNeeded = registersForMnemonics(Object.keys(vals));
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
@@ -161,10 +167,9 @@ exports.connect = function (spi,ce,irq) {
     // - test!
     // - document
     
-    // TODO: straighten out this portion of the API, these encourage chaining but also require callback.
     nrf.channel = function (val, cb) {
         if (arguments.length < 2) {
-            cb = val;
+            cb = val || _nop;
             nrf.getStates(['RF_CH'], function (e,d) { cb(e, d && d.RF_CH); });
         } else nrf.setStates({RF_CH:val}, cb);
         return this;
@@ -172,7 +177,7 @@ exports.connect = function (spi,ce,irq) {
     
     nrf.dataRate = function (val, cb) {
         if (arguments.length < 2) {
-            cb = val;
+            cb = val || _nop;
             nrf.getStates(['RF_DR_LOW, RF_DR_HIGH'], function (e,d) {
                 if (e) return cb(e);
                 else if (d.RF_DR_LOW) cb(null, '250kbps');
@@ -201,7 +206,7 @@ exports.connect = function (spi,ce,irq) {
     nrf.power = function (val, cb) {            // TODO: rename and add powerUp as well
         var vals = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];
         if (arguments.length < 2) {
-            cb = val;
+            cb = val || _nop;
             nrf.getStates(['RF_PWR'], function (e,d) { cb(e, d && vals[d.RF_PWR]); });
         } else {
             val = vals.indexOf(val);
@@ -213,7 +218,7 @@ exports.connect = function (spi,ce,irq) {
     
     nrf.crcBytes = function (val, cb) {
         if (arguments.length < 2) {
-            cb = val;
+            cb = val || _nop;
             nrf.getStates(['EN_CRC, CRCO'], function (e,d) {
                 if (e) return cb(e);
                 else if (!d.EN_CRC) cb(null, 0);
@@ -241,7 +246,7 @@ exports.connect = function (spi,ce,irq) {
     
     nrf.autoRetransmit = function (val, cb) {       // NOTE: using retryCount/retryDelay on tx pipe is preferred!
         if (arguments.length < 2) {
-            cb = val;
+            cb = val || _nop;
             nrf.getStates(['ARD, ARC'], function (e,d) { cb(e, d && {count:d.ARC,delay:250*(1+d.ARD)}); });
         } else {
             var states = {};
@@ -253,6 +258,7 @@ exports.connect = function (spi,ce,irq) {
     
     // caller must know pipe and provide its params!
     nrf.readPayload = function (opts, cb) {
+        if (!cb) cb = _nop;
         if (opts.width === 'auto') nrf.execCommand('R_RX_PL_WID', 1, function (e,d) {
             if (e) return finish(e);
             var width = d[0];
@@ -275,8 +281,9 @@ exports.connect = function (spi,ce,irq) {
     
     // caller must set up any prerequisites (i.e. TX addr) and ensure no other send is pending
     nrf.sendPayload = function (data, opts, cb) {
-        nrf._prevSender = null;     // help PxX setup again if user sends data directly
+        if (!cb) cb = _nop;
         if (data.length > 32) throw Error("Maximum packet size exceeded. Smaller writes, Dash!");
+        nrf._prevSender = null;     // help PxX setup again if user sends data directly
         
         var cmd;
         if ('asAckTo' in opts) {
@@ -308,7 +315,7 @@ exports.connect = function (spi,ce,irq) {
     
     nrf.reset = function (states, cb) {
         if (arguments.length < 2) {
-            cb = states;
+            cb = states || _nop;
             states = REGISTER_DEFAULTS;
         }
         ce.mode('low');

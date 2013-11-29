@@ -27,8 +27,7 @@ TimeStream.prototype._read = function () {
 
 setTimeout(function () {
     nrf._debug = true;
-    function _nop() {};
-    nrf.channel(0x4c, _nop).dataRate('1Mbps', _nop).crcBytes(2,_nop).begin(function () {
+    nrf.channel(0x4c).dataRate('1Mbps').crcBytes(2).begin(function () {
         var tx = nrf.openPipe('tx', pipes[0], {autoAck:false});
         tx.on('ready', function () {
             (new TimeStream).pipe(tx);
