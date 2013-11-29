@@ -30,7 +30,10 @@ setTimeout(function () {
     nrf.channel(0x4c).dataRate('1Mbps').crcBytes(2).begin(function () {
         var tx = nrf.openPipe('tx', pipes[0], {autoAck:false});
         tx.on('ready', function () {
-            (new TimeStream).pipe(tx);
+            //(new TimeStream).pipe(tx);
+            setInterval(function () {
+                tx.write('zyxa');
+            }, 1e3);
         });
     });
 }, 1e3);      // HACK: wait for printDetails to finish
