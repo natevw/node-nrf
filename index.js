@@ -363,7 +363,7 @@ exports.connect = function (spi,ce,irq) {
             if (e) return nrf.emit('error', e);
             nrf._irqOn();           // TODO: wait until pipe open?
             ready = true;
-            nrf.emit('ready', mode);
+            nrf.emit('ready');
         });
         if (cb) nrf.once('ready', cb);
     };
