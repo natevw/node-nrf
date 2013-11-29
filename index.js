@@ -250,6 +250,14 @@ exports.connect = function (spi,ce,irq) {
         return this;
     };
     
+    nrf.addressWidth = function (val, cb) {
+        if (typeof val === 'function' || typeof val === 'undefined') {
+            cb = val || _nop;
+            nrf.getStates(['AW'], function (e,d) { cb(e, d && d.AW+2); });
+        } else nrf.setStates({AW:val-2}, cb);
+        return this;
+    };
+    
     nrf.autoRetransmit = function (val, cb) {       // NOTE: using retryCount/retryDelay on tx pipe is preferred!
         if (typeof val === 'function' || typeof val === 'undefined') {
             cb = val || _nop;
