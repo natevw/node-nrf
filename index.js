@@ -309,7 +309,7 @@ exports.connect = function (spi,ce,irq) {
         }
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
-            nrf.pulseCE();
+            if (!opts.ceHigh) nrf.pulseCE();
             // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
             nrf.once('interrupt', function (d) {
                 if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
@@ -356,7 +356,7 @@ exports.connect = function (spi,ce,irq) {
             irq.addListener('fall', irqListener);
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
-            irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners
+            irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners?
                 if (nrf.listeners('interrupt').length) nrf._checkStatus(false);
             }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
         }
@@ -370,8 +370,10 @@ exports.connect = function (spi,ce,irq) {
     };
     
     var ready = false,
+        txQ = null,
         txPipes = [],
-        rxPipes = [];
+        rxPipes = []
+        rxP0 = null;
     nrf.begin = function (cb) {
         ce.mode('low');
         var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
@@ -445,6 +447,7 @@ exports.connect = function (spi,ce,irq) {
         if (opts._primRX) {
             ce.mode('high');
             s['PRIM_RX'] = true;
+            if (pipe === 0) rxP0 = this;
         }
         if (opts._enableRX) {
             s['RX_ADDR_P'+n] = addr;
@@ -473,8 +476,10 @@ exports.connect = function (spi,ce,irq) {
     }
     util.inherits(PxX, stream.Duplex);
     PxX.prototype._write = function (buff, _enc, cb) {
-        // TODO: need to coordinate with TX (and any RX on pipe 0)
-        this._tx(buff,cb);
+        if (txQ) ;      // TODO: need to avoid race conditions with any other PTX!
+        this._tx(buff,function (e) {
+            cb(e);
+        });
     };
     PxX.prototype._tx = function (data, cb) {      // see p.75
         var s = {};
@@ -484,7 +489,8 @@ exports.connect = function (spi,ce,irq) {
             s['TX_ADDR'] = this._addr;
             s['PRIM_RX'] = false;
             if (this._sendOpts.ack) {
-                s['RX_ADDR_P0'] = this._addr;       // TODO: this/RX_DR and CE pin are the only things that conflict with simultaneous PRX usage
+                s['RX_ADDR_P0'] = this._addr;
+                if (rxP0) rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
             }
@@ -492,8 +498,16 @@ exports.connect = function (spi,ce,irq) {
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             try {
-                // TODO: need to avoid a setStates race condition with any other PTX!
-                nrf.sendPayload(data, this._sendOpts, cb);
+                var sendOpts = _extend({},this._sendOpts);
+                if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
+                nrf.sendPayload(data, sendOpts, function (e) {
+                    if (e) return cb(e);
+                    var s = {};
+                    if (rxPipes.length) s['PRIM_RX'] = true;
+                    if (this._sendOpts.ack && rxP0) s['RX_ADDR_P0'] = rxP0._addr;
+                    if (rxP0) rxP0._pipe = 0;
+                    nrf.setStates(s, cb);
+                }.bind(this));
                 nrf._prevSender = this;    // we might avoid setting state next time
             } catch (e) {
                 cb(e);
@@ -515,6 +529,8 @@ exports.connect = function (spi,ce,irq) {
         nrf._checkStatus(false);
     };
     PxX.prototype.close = function () {
+        if (rxP0 === this) rxP0 = null;
+        // TODO: also update CE and RX_EN registers accordingly
         this.push(null);
         this.emit('close');
     };
@@ -529,7 +545,7 @@ exports.connect = function (spi,ce,irq) {
     
     function PRX(pipe, addr, opts) {
         opts = _extend({size:'auto',autoAck:true}, opts);
-        opts._enableRX = true;
+        opts._primRX = opts._enableRX = true;
         PxX.call(this, pipe, addr, opts);
         _extend(this._sendOpts, {ack:false, asAckTo:pipe});
     }
