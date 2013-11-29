@@ -178,7 +178,7 @@ exports.connect = function (spi,ce,irq) {
     nrf.dataRate = function (val, cb) {
         if (arguments.length < 2) {
             cb = val || _nop;
-            nrf.getStates(['RF_DR_LOW, RF_DR_HIGH'], function (e,d) {
+            nrf.getStates(['RF_DR_LOW', 'RF_DR_HIGH'], function (e,d) {
                 if (e) return cb(e);
                 else if (d.RF_DR_LOW) cb(null, '250kbps');
                 else if (d.RF_DR_HIGH) cb(null, '2Mbps');
