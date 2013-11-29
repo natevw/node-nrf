@@ -424,7 +424,7 @@ exports.connect = function (spi,ce,irq) {
         
         var s = {},
             n = pipe;
-        if (addr.length > 1) s['AW'] = addr.length;
+        if (addr.length > 1) s['AW'] = addr.length - 2;
         if (opts._primRX) {
             ce.mode('high');
             s['PRIM_RX'] = true;

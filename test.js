@@ -21,7 +21,7 @@ TimeStream.prototype._read = function () {
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf.channel(0x4c).dataRate('1Mbps').crcBytes(2).begin(function () {
-    var tx = nrf.openPipe('tx', pipes[0], {autoAck:false});
+    var tx = nrf.openPipe('tx', pipes[0], {autoAck:true});
     tx.on('ready', function () {
         nrf.printDetails();
         //(new TimeStream).pipe(tx);
