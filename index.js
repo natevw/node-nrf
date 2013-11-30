@@ -153,7 +153,7 @@ exports.connect = function (spi,ce,irq) {
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
                 if (val !== d[0]) nrf.execCommand(['W_REGISTER', reg], [val], function () {
-                    if (settlingNeeded) blockMicroseconds(settlingNeeded);  // see p.24
+                    if (settlingNeeded) nrf.blockMicroseconds(settlingNeeded);  // see p.24
                     cb.apply(this, arguments);
                 });
                 else cb(null);  // don't bother writing if value hasn't changed
@@ -164,10 +164,10 @@ exports.connect = function (spi,ce,irq) {
     
     nrf.pulseCE = function () {
         ce.value(true);
-        blockMicroseconds(nrf._T.hce);
+        nrf.blockMicroseconds(nrf._T.hce);
         ce.value(false);
         // AFAICT, we only need to wait Tpece2csn from *start* of pulse before SPI
-        if (nrf._T.pece2csn > nrf._T.hce) blockMicroseconds(nrf._T.pece2csn - nrf._T.hce);
+        if (nrf._T.pece2csn > nrf._T.hce) nrf.blockMicroseconds(nrf._T.pece2csn - nrf._T.hce);
         if (nrf._debug) console.log('pulsed ce');
     };
     nrf.on('interrupt', function (d) { if (nrf._debug) console.log("IRQ.", d); });
@@ -480,7 +480,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.setStates(s, function (e) {
             if (opts._primRX && !rxPipes.length) {
                 ce.mode('high');
-                blockMicroseconds(nrf._T.stby2a);     // TODO: do we need this additional delay?
+                nrf.blockMicroseconds(nrf._T.stby2a);     // TODO: do we need this additional delay?
             }
             if (e) this.emit('error', e);
             else this.emit('ready');
