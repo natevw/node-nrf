@@ -20,14 +20,6 @@ function _extend(obj) {
     return obj;
 }
 
-function blockMicroseconds(us) {      // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
-    var start = process.hrtime();
-    while (1) {
-        var diff = process.hrtime(start);
-        if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
-    }
-}
-
 function _nop() {}          // used when a cb is not provided
 
 
@@ -39,6 +31,16 @@ exports.connect = function (spi,ce,irq) {
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
     nrf._T = _extend({}, _m.TIMING);        // may need local override of Tpd2stby
+    
+    nrf.blockMicroseconds = function (us) {
+        // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
+        var start = process.hrtime();
+        while (1) {
+            var diff = process.hrtime(start);
+            if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
+        }
+        if (nrf._debug) console.log("Blocked for "+us+"µs.");
+    }
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
         if (typeof data === 'function' || typeof data === 'undefined') {
