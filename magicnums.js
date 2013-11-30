@@ -127,3 +127,10 @@ exports.REGISTER_DEFAULTS = {
     DYNPD:      _b('0000 0000'),
     FEATURE:    _b('0000 0000'),
 };
+
+exports.TIMING = {
+    pd2stby: 150,      // NOTE: varies dep. on crystal configuration, see p.24/p.19
+    stby2a: 130,
+    hce: 10,
+    pece2csn: 4
+};

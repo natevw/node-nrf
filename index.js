@@ -3,11 +3,8 @@ var q = require('queue-async'),
     util = require('util'),
     events = require('events'),
     SPI = require('pi-spi'),
-    GPIO = require("./gpio");
-
-var COMMANDS = require("./magicnums").COMMANDS,
-    REGISTER_MAP = require("./magicnums").REGISTER_MAP,
-    REGISTER_DEFAULTS = require("./magicnums").REGISTER_DEFAULTS;
+    GPIO = require("./gpio"),
+    _m = require("./magicnums");
 
 function forEachWithCB(fn, cb) {
     var process = q(1);
@@ -41,6 +38,8 @@ exports.connect = function (spi,ce,irq) {
         ce = GPIO.connect(ce),
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
+    nrf._T = _extend({}, _m.TIMING);        // may need local override of Tpd2stby
+    
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
         if (typeof data === 'function' || typeof data === 'undefined') {
             cb = data || _nop;
@@ -50,9 +49,9 @@ exports.connect = function (spi,ce,irq) {
         
         var cmdByte;
         if (typeof cmd === 'string') {
-            cmdByte = COMMANDS[cmd];
+            cmdByte = _m.COMMANDS[cmd];
         } else if (Array.isArray(cmd)) {
-            cmdByte = COMMANDS[cmd[0]] | cmd[1];
+            cmdByte = _m.COMMANDS[cmd[0]] | cmd[1];
         } else cmdByte = cmd;
         
         var writeBuf,
@@ -78,7 +77,7 @@ exports.connect = function (spi,ce,irq) {
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
-            var _r = REGISTER_MAP[mnem];
+            var _r = _m.REGISTER_MAP[mnem];
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
             if (_r.length === 1) _r.push(0,8);
             
@@ -93,7 +92,7 @@ exports.connect = function (spi,ce,irq) {
     }
     
     function maskForMnemonic(mnem) {
-        var _r = REGISTER_MAP[mnem],
+        var _r = _m.REGISTER_MAP[mnem],
             howManyBits = _r[2] || 1,
             rightmostBit = _r[1],
             mask = 0xFF >> (8 - howManyBits) << rightmostBit;
@@ -136,14 +135,25 @@ exports.connect = function (spi,ce,irq) {
                 nrf.execCommand(['W_REGISTER', reg], buf, cb);
             } else nrf.execCommand(['R_REGISTER', reg], 1, function (e,d) {
                 if (e) return cb(e);
-                var val = d[0];
+                var val = d[0],
+                    settlingNeeded = 0;
                 if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
                     var m = maskForMnemonic(mnem);
+                    if (mnem === 'PWR_UP') {
+                        var rising = !(d[0] & m.mask) && vals[mnem];
+                        if (rising) settlingNeeded = Math.max(settlingNeeded, nrf._T.pd2stby);
+                    } else if (mnem === 'PRIM_RX') {    
+                        var changing = !(d[0] & m.mask) !== !vals[mnem];
+                        if (changing) settlingNeeded = Math.max(settlingNeeded, nrf._T.stby2a);
+                    }
                     val &= ~m.mask;        // clear current value
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
-                if (val !== d[0]) nrf.execCommand(['W_REGISTER', reg], [val], cb);
+                if (val !== d[0]) nrf.execCommand(['W_REGISTER', reg], [val], function () {
+                    if (settlingNeeded) blockMicroseconds(settlingNeeded);  // see p.24
+                    cb.apply(this, arguments);
+                });
                 else cb(null);  // don't bother writing if value hasn't changed
             });
         }
@@ -151,9 +161,11 @@ exports.connect = function (spi,ce,irq) {
     };
     
     nrf.pulseCE = function () {
-        ce.value(true);     // pulse for at least 10µs
-        blockMicroseconds(10);
+        ce.value(true);
+        blockMicroseconds(nrf._T.hce);
         ce.value(false);
+        // AFAICT, we only need to wait Tpece2csn from *start* of pulse before SPI
+        if (nrf._T.pece2csn > nrf._T.hce) blockMicroseconds(nrf._T.pece2csn - nrf._T.hce);
         if (nrf._debug) console.log('pulsed ce');
     };
     nrf.on('interrupt', function (d) { if (nrf._debug) console.log("IRQ.", d); });
@@ -331,7 +343,7 @@ exports.connect = function (spi,ce,irq) {
     nrf.reset = function (states, cb) {
         if (typeof states === 'function' || typeof states === 'undefined') {
             cb = states || _nop;
-            states = REGISTER_DEFAULTS;
+            states = _m.REGISTER_DEFAULTS;
         }
         ce.mode('low');
         q(1)
@@ -446,7 +458,6 @@ exports.connect = function (spi,ce,irq) {
             n = pipe;
         if (addr.length > 1) s['AW'] = addr.length - 2;
         if (opts._primRX) {
-            ce.mode('high');
             s['PRIM_RX'] = true;
             if (pipe === 0) rxP0 = this;
         }
@@ -465,6 +476,10 @@ exports.connect = function (spi,ce,irq) {
             s['DPL_P'+n] = false;
         }
         nrf.setStates(s, function (e) {
+            if (opts._primRX && !rxPipes.length) {
+                ce.mode('high');
+                blockMicroseconds(nrf._T.stby2a);     // TODO: do we need this additional delay?
+            }
             if (e) this.emit('error', e);
             else this.emit('ready');
         }.bind(this));
