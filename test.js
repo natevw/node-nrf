@@ -22,7 +22,7 @@ TimeStream.prototype._read = function () {
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf._debug = true;
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).begin(function () {
-    var tx = nrf.openPipe('tx', pipes[0], {autoAck:false});
+    var tx = nrf.openPipe('tx', pipes[0], {autoAck:true});
     tx.on('ready', function () {
         nrf._debug = false;
         nrf.printDetails(function () {
@@ -32,6 +32,9 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).begin(fu
                 tx.write('zyxa');
             }, 1e3);
         });
+    });
+    tx.on('error', function (e) {
+        console.warn("TX error", e);
     });
     var rx = nrf.openPipe('rx', pipes[1]);
     rx.on('data', function (d) {
