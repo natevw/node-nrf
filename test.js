@@ -22,7 +22,6 @@ TimeStream.prototype._read = function () {
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf._debug = true;
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).begin(function () {
-/*
     var tx = nrf.openPipe('tx', pipes[0], {autoAck:false});
     tx.on('ready', function () {
         nrf._debug = false;
@@ -34,8 +33,7 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).begin(fu
             }, 1e3);
         });
     });
-*/
-    var rx = nrf.openPipe('rx', pipes[0]);
+    var rx = nrf.openPipe('rx', pipes[1]);
     rx.on('data', function (d) {
         console.log("Got data", d);
     });
