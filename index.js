@@ -171,7 +171,8 @@ exports.connect = function (spi,ce,irq) {
         if (nrf._debug) console.log('pulsed ce');
     };
     nrf.setCE = function (state) {
-        ce.mode(state);         // TODO: can we sometimes just set value?
+        if (typeof state === 'string') ce.mode(state);
+        else ce.value(state);
         if (nrf._debug) console.log("Set CE "+state+".");
         nrf.blockMicroseconds(nrf._T.stby2a);       // (assume ce changed TX/RX mode)
     };
@@ -412,7 +413,7 @@ exports.connect = function (spi,ce,irq) {
         txPipes.length = rxPipes.length = 0;
         ready = false;
         nrf._irqOff();
-        nrf.setCE('low');
+        nrf.setCE(false);
         nrf.setStates({PWR_UP:false}, function (e) {
             if (e) nrf.emit('error', e);
             else if (cb) cb();
@@ -483,7 +484,7 @@ exports.connect = function (spi,ce,irq) {
             s['DPL_P'+n] = false;
         }
         nrf.setStates(s, function (e) {
-            if (opts._primRX && !rxPipes.length) nrf.setCE('high');
+            if (opts._primRX && !rxPipes.length) nrf.setCE(true);
             if (e) this.emit('error', e);
             else this.emit('ready');
         }.bind(this));
