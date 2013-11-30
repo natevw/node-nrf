@@ -30,7 +30,7 @@ exports.connect = function (spi,ce,irq) {
         ce = GPIO.connect(ce),
         irq = (arguments.length > 2) && GPIO.connect(irq);
     
-    nrf._T = _extend({}, _m.TIMING);        // may need local override of Tpd2stby
+    nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
     
     nrf.blockMicroseconds = function (us) {
         // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
