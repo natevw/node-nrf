@@ -39,7 +39,7 @@ exports.connect = function (spi,ce,irq) {
             var diff = process.hrtime(start);
             if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
         }
-        if (nrf._debug) console.log("Blocked for "+us+"µs.");
+        if (nrf._debug) console.log("blocked for "+us+"µs.");
     }
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
