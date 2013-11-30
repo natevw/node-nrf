@@ -170,6 +170,11 @@ exports.connect = function (spi,ce,irq) {
         if (nrf._T.pece2csn > nrf._T.hce) nrf.blockMicroseconds(nrf._T.pece2csn - nrf._T.hce);
         if (nrf._debug) console.log('pulsed ce');
     };
+    nrf.setCE = function (state) {
+        ce.mode(state);         // TODO: can we sometimes just set value?
+        if (nrf._debug) console.log("Set CE "+state+".");
+        nrf.blockMicroseconds(nrf._T.stby2a);       // (assume ce changed TX/RX mode)
+    };
     nrf.on('interrupt', function (d) { if (nrf._debug) console.log("IRQ.", d); });
     
     // ✓ low level interface (execCommand, getStates, setStates, pulseCE, 'interrupt')
@@ -347,7 +352,7 @@ exports.connect = function (spi,ce,irq) {
             cb = states || _nop;
             states = _m.REGISTER_DEFAULTS;
         }
-        ce.mode('low');
+        nrf.setCE('low');
         q(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
@@ -390,7 +395,7 @@ exports.connect = function (spi,ce,irq) {
         rxPipes = []
         rxP0 = null;
     nrf.begin = function (cb) {
-        ce.mode('low');
+        nrf.setCE('low');
         var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
         nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
@@ -407,7 +412,7 @@ exports.connect = function (spi,ce,irq) {
         txPipes.length = rxPipes.length = 0;
         ready = false;
         nrf._irqOff();
-        ce.mode('low');
+        nrf.setCE('low');
         nrf.setStates({PWR_UP:false}, function (e) {
             if (e) nrf.emit('error', e);
             else if (cb) cb();
@@ -478,10 +483,7 @@ exports.connect = function (spi,ce,irq) {
             s['DPL_P'+n] = false;
         }
         nrf.setStates(s, function (e) {
-            if (opts._primRX && !rxPipes.length) {
-                ce.mode('high');
-                nrf.blockMicroseconds(nrf._T.stby2a);     // TODO: do we need this additional delay?
-            }
+            if (opts._primRX && !rxPipes.length) nrf.setCE('high');
             if (e) this.emit('error', e);
             else this.emit('ready');
         }.bind(this));
