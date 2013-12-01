@@ -112,6 +112,7 @@ exports.connect = function (spi,ce,irq) {
             // TODO: execCommand always reads register 0x07 but we're not optimizing for that
             // TODO: we could probably also eliminate re-fetch of 0x07 during IRQ processing
             var iq = registersNeeded[reg];
+            reg = +reg;
             nrf.execCommand(['R_REGISTER',reg], iq.len, function (e,d) {
                 if (e) return cb(e);
                 iq.arr.forEach(function (mnem) {
@@ -135,6 +136,7 @@ exports.connect = function (spi,ce,irq) {
         var registersNeeded = registersForMnemonics(Object.keys(vals));
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
+            reg = +reg;     // was string key, now convert back to number
             // if a register is "full" we can simply overwrite, otherwise we must read+merge
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
             if (!iq.arr.length || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
