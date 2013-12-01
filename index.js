@@ -126,7 +126,7 @@ exports.connect = function (spi,ce,irq) {
         });
     };
     
-    var _statusReg = REGISTER_MAP['STATUS'][0];
+    var _statusReg = _m.REGISTER_MAP['STATUS'][0];
     nrf.setStates = function (vals, cb) {
         if (nrf._debug) console.log('setStates', vals);
         if (!cb) cb = _nop;
