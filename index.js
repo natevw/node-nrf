@@ -363,8 +363,9 @@ exports.connect = function (spi,ce,irq) {
     };
     
     nrf._checkStatus = function (irq) {
-        nrf.getStates(['RX_P_NO','TX_DS','MAX_RT'], function (e,d) {
+        nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR'], function (e,d) {
             if (e) nrf.emit('error', e);
+            else if (irq && d.RX_DR && d.RX_P_NO === 0x07) nrf._checkStatus(irq);       // HACK: poll until things shape up!
             else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) nrf.emit('interrupt', d);
         });
     };
