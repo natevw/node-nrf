@@ -362,8 +362,12 @@ exports.connect = function (spi,ce,irq) {
         .await(cb);
     };
     
+    var checking = false;
     nrf._checkStatus = function (irq) {
-        nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR'], function (e,d) {
+        if (checking) return;
+        else checking = true;
+        nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR','FIFO_STATUS'], function (e,d) {
+            checking = false;
             if (e) nrf.emit('error', e);
             else if (d.RX_DR && d.RX_P_NO === 0x07) setTimeout(function () {
                 // HACK: chip seems to assert RX_DR a while before setting RX_P_NO, so poll if necessary
