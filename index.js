@@ -286,6 +286,7 @@ exports.connect = function (spi,ce,irq) {
             if ('delay' in val) states['ARD'] = val.delay/250 - 1;
             nrf.setStates(states, cb);
         }
+        return this;
     };
     
     // caller must know pipe and provide its params!
