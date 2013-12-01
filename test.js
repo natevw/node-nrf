@@ -14,7 +14,10 @@ function TimeStream(ms) {
 }
 util.inherits(TimeStream, stream.Readable);
 TimeStream.prototype._read = function () {
-    this.push(new Date().toISOString());
+    //this.push(new Date().toISOString());
+    var b = Buffer(4);
+    b.writeUInt32BE(Date.now());
+    this.push(b);
 };
 
 
@@ -27,7 +30,8 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         nrf._debug = false;
         nrf.printDetails(function () {
             nrf._debug = true;
-            //(new TimeStream).pipe(tx);
+            (new TimeStream).pipe(tx);
+            return;
             
             var num = 0;
             setInterval(function () {
