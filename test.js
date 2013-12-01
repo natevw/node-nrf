@@ -50,6 +50,8 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
     });
     tx.on('error', function (e) {
         console.warn("TX error", e);
+        // original will have unpipe, start another!
+        (new CountStream).pipe(tx);
     });
     /*
     var rx = nrf.openPipe('rx', pipes[1]);
