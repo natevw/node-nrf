@@ -28,8 +28,10 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         nrf.printDetails(function () {
             nrf._debug = true;
             //(new TimeStream).pipe(tx);
+            
+            var num = 0;
             setInterval(function () {
-                tx.write('zyxa');
+                tx.write(Buffer([num,num,num,num++]);
             }, 1e3);
         });
     });
