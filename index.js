@@ -401,7 +401,7 @@ exports.connect = function (spi,ce,irq) {
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
         nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
             if (e) return nrf.emit('error', e);
-            nrf._irqOn();           // TODO: wait until pipe open?
+            nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
             nrf.emit('ready');
         });
