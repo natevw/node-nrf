@@ -365,11 +365,11 @@ exports.connect = function (spi,ce,irq) {
     nrf._checkStatus = function (irq) {
         nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR'], function (e,d) {
             if (e) nrf.emit('error', e);
-            else if (d.RX_DR && d.RX_P_NO === 0x07) process.nextTick(function () {
+            else if (d.RX_DR && d.RX_P_NO === 0x07) setTimeout(function () {
                 // HACK: chip seems to assert RX_DR a while before setting RX_P_NO, so poll if necessary
                 // TODO: is there one of the settle T values that applies here? (doesn't seem so in quick testing)
                 nrf._checkStatus(irq);
-            });
+            }, 0);
             else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) nrf.emit('interrupt', d);
         });
     };
