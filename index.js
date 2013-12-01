@@ -228,13 +228,12 @@ exports.connect = function (spi,ce,irq) {
         return this;
     };
     
-    nrf.transmitPower = function (val, cb) {                    // TODO: allow specifying per-PTX?
-        var vals = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];
+    nrf.transmitPower = function (val, cb) {
         if (typeof val === 'function' || typeof val === 'undefined') {
             cb = val || _nop;
-            nrf.getStates(['RF_PWR'], function (e,d) { cb(e, d && vals[d.RF_PWR]); });
+            nrf.getStates(['RF_PWR'], function (e,d) { cb(e, d && _m.TX_POWER[d.RF_PWR]); });
         } else {
-            val = vals.indexOf(val);
+            val = _m.TX_POWER.indexOf(val);
             if (val === -1) throw Error("Radio power must be 'PA_MIN', 'PA_LOW', 'PA_HIGH' or 'PA_MAX'.");
             nrf.setStates({RF_PWR:val}, cb);
         }
@@ -285,7 +284,7 @@ exports.connect = function (spi,ce,irq) {
             var states = {};
             if ('count' in val) states['ARC'] = val.count;
             if ('delay' in val) states['ARD'] = val.delay/250 - 1;
-            nrf.setStates(val, cb);
+            nrf.setStates(states, cb);
         }
     };
     
@@ -526,6 +525,7 @@ exports.connect = function (spi,ce,irq) {
                 s['RX_ADDR_P0'] = this._addr;
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
+                if ('txPower' in this.opts) s['RF_PWR'] = _m.TX_POWER.indexOf(this.opts.txPower);
             }
         }
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
@@ -622,7 +622,7 @@ exports.connect = function (spi,ce,irq) {
                         console.log("DYNPD/FEATURE:\t",_h(d.DYNPD),_h(d.FEATURE));
                         nrf.getStates(['RF_DR_LOW','RF_DR_HIGH','EN_CRC','CRCO','RF_PWR'], function (e,d) {
                             var isPlus = false,
-                                pwrs = ('compat') ? ["PA_MIN", "PA_LOW", "PA_HIGH", "PA_MAX"] : ["-18dBm","-12dBm","-6dBm","0dBm"];
+                                pwrs = ('compat') ? _m.TX_POWER : ["-18dBm","-12dBm","-6dBm","0dBm"];
                             if (d.RF_DR_LOW) {      // if set, we already know and don't need to check by toggling
                                 isPlus = true;
                                 logFinalDetails();

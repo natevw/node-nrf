@@ -134,3 +134,5 @@ exports.TIMING = {
     hce: 10,
     pece2csn: 4
 };
+
+exports.TX_POWER = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];

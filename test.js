@@ -21,7 +21,7 @@ TimeStream.prototype._read = function () {
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf._debug = true;
-nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).begin(function () {
+nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:4000}).begin(function () {
     var tx = nrf.openPipe('tx', pipes[0], {autoAck:true});
     tx.on('ready', function () {
         nrf._debug = false;
