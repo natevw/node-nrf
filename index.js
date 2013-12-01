@@ -391,7 +391,7 @@ exports.connect = function (spi,ce,irq) {
     };
     
     var ready = false,
-        txQ = null,
+        txQ = [],
         txPipes = [],
         rxPipes = []
         rxP0 = null;
@@ -410,7 +410,7 @@ exports.connect = function (spi,ce,irq) {
     nrf.end = function (cb) {
         var pipes = txPipes.concat(rxPipes);
         pipes.forEach(function (pipe) { pipe.close(); });
-        txPipes.length = rxPipes.length = 0;
+        txPipes.length = rxPipes.length = txQ.length = 0;
         ready = false;
         nrf._irqOff();
         nrf.setCE(false);
@@ -452,6 +452,19 @@ exports.connect = function (spi,ce,irq) {
         }
         return pipe;
     };
+    nrf._nudgeTX = function () {
+        if (txQ.active || !txQ.length) return;
+        var d = txQ.shift(); 
+        txQ.active = true;
+        d.pipe._tx(d.data, function () {
+            try {
+                d.cb.apply(this, arguments);
+            } finally {
+                delete txQ.active;
+                nrf._nudgeTX();
+            }
+        });
+    };
     
     function PxX(pipe, addr, opts) {           // base for PTX/PRX
         stream.Duplex.call(this);
@@ -463,7 +476,7 @@ exports.connect = function (spi,ce,irq) {
         this._sendOpts = {};
         
         var s = {},
-            n = pipe;
+            n = pipe;           // TODO: what if ack'ed TX already in progress and n=0?
         if (addr.length > 1) s['AW'] = addr.length - 2;
         if (opts._primRX) {
             s['PRIM_RX'] = true;
@@ -497,10 +510,8 @@ exports.connect = function (spi,ce,irq) {
     }
     util.inherits(PxX, stream.Duplex);
     PxX.prototype._write = function (buff, _enc, cb) {
-        if (txQ) ;      // TODO: need to avoid race conditions with any other PTX!
-        this._tx(buff,function (e) {
-            cb(e);
-        });
+        txQ.push({pipe:this,data:buff,cb:cb});
+        nrf._nudgeTX();
     };
     PxX.prototype._tx = function (data, cb) {      // see p.75
         var s = {};
