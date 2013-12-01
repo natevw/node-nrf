@@ -519,8 +519,8 @@ exports.connect = function (spi,ce,irq) {
             s['TX_ADDR'] = this._addr;
             s['PRIM_RX'] = false;
             if (this._sendOpts.ack) {
-                s['RX_ADDR_P0'] = this._addr;
                 if (rxP0) rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
+                s['RX_ADDR_P0'] = this._addr;
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
             }
@@ -534,8 +534,10 @@ exports.connect = function (spi,ce,irq) {
                     if (e) return cb(e);
                     var s = {};
                     if (rxPipes.length) s['PRIM_RX'] = true;
-                    if (this._sendOpts.ack && rxP0) s['RX_ADDR_P0'] = rxP0._addr;
-                    if (rxP0) rxP0._pipe = 0;
+                    if (this._sendOpts.ack && rxP0) {
+                        s['RX_ADDR_P0'] = rxP0._addr;
+                        rxP0._pipe = 0;
+                    }
                     nrf.setStates(s, cb);
                 }.bind(this));
                 nrf._prevSender = this;    // we might avoid setting state next time
