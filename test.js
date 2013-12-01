@@ -31,7 +31,7 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
             
             var num = 0;
             setInterval(function () {
-                tx.write(Buffer([num,num,num,num++]));
+                tx.write(Buffer([0,0,0,num++]));
             }, 1e3);
         });
     });
