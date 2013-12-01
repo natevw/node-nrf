@@ -42,7 +42,7 @@ exports.connect = function (spi,ce,irq) {
         if (nrf._debug) console.log("blocked for "+us+"µs.");
     }
     
-    nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
+    nrf.execCommand = function (cmd, data, cb) {        // NOTE: data reversed in-place! (also: can omit it, or specify readLen instead)
         if (typeof data === 'function' || typeof data === 'undefined') {
             cb = data || _nop;
             data = 0;
@@ -61,8 +61,11 @@ exports.connect = function (spi,ce,irq) {
         if (Buffer.isBuffer(data)) {
             writeBuf = Buffer(data.length+1);
             writeBuf[0] = cmdByte;
+            Array.prototype.reverse.call(data);     // data is LSByte to MSByte, see p.50
             data.copy(writeBuf,1);
+            // NOTE: we "should" reverse the data back, but it's pointless for our usage…
         } else if (Array.isArray(data)) {
+            data.reverse();
             writeBuf = Buffer([cmdByte].concat(data));
         } else {
             writeBuf = Buffer([cmdByte]);
@@ -72,7 +75,7 @@ exports.connect = function (spi,ce,irq) {
         spi.transfer(writeBuf, readLen && readLen+1, function (e,d) {
             if (nrf._debug && readLen) console.log(' - exec read:', d);
             if (e) return cb(e);
-            else return cb(null, d && d.slice(1));
+            else return cb(null, d && Array.prototype.reverse.call(d.slice(1)));
         });
     };   
     
