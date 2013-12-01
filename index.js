@@ -276,7 +276,7 @@ exports.connect = function (spi,ce,irq) {
         return this;
     };
     
-    nrf.autoRetransmit = function (val, cb) {       // NOTE: using retryCount/retryDelay on tx pipe is preferred!
+    nrf.autoRetransmit = function (val, cb) {
         if (typeof val === 'function' || typeof val === 'undefined') {
             cb = val || _nop;
             nrf.getStates(['ARD, ARC'], function (e,d) { cb(e, d && {count:d.ARC,delay:250*(1+d.ARD)}); });
