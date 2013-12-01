@@ -534,23 +534,19 @@ exports.connect = function (spi,ce,irq) {
         }
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
-            try {
-                var sendOpts = _extend({},this._sendOpts);
-                if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
-                nrf.sendPayload(data, sendOpts, function (e) {
-                    if (e) return cb(e);
-                    var s = {};                 // NOTE: if another TX is waiting, switching to RX is a waste…
-                    if (rxPipes.length && !this._sendOpts.asAckTo) s['PRIM_RX'] = true;
-                    if (this._sendOpts.ack && rxP0) {
-                        s['RX_ADDR_P0'] = rxP0._addr;
-                        rxP0._pipe = 0;
-                    }
-                    nrf.setStates(s, cb);
-                }.bind(this));
-                if (!rxPipes.length) nrf._prevSender = this;    // we might avoid setting state next time
-            } catch (e) {
-                cb(e);
-            }
+            var sendOpts = _extend({},this._sendOpts);
+            if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
+            nrf.sendPayload(data, sendOpts, function (e) {
+                if (e) return cb(e);
+                var s = {};                 // NOTE: if another TX is waiting, switching to RX is a waste…
+                if (rxPipes.length && !this._sendOpts.asAckTo) s['PRIM_RX'] = true;
+                if (this._sendOpts.ack && rxP0) {
+                    s['RX_ADDR_P0'] = rxP0._addr;
+                    rxP0._pipe = 0;
+                }
+                nrf.setStates(s, cb);
+            }.bind(this));
+            if (!rxPipes.length) nrf._prevSender = this;    // we might avoid setting state next time
         }.bind(this));
     };
     PxX.prototype._rx = function (d) {
