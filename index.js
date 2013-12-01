@@ -109,6 +109,7 @@ exports.connect = function (spi,ce,irq) {
             states = Object.create(null);
         function processInquiryForRegister(reg, cb) {
             // TODO: execCommand always reads register 0x07 but we're not optimizing for that
+            // TODO: we could probably also eliminate re-fetch of 0x07 during IRQ processing
             var iq = registersNeeded[reg];
             nrf.execCommand(['R_REGISTER',reg], iq.len, function (e,d) {
                 if (e) return cb(e);
