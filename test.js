@@ -33,6 +33,7 @@ CountStream.prototype._read = function () {
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf._debug = true;
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:500}).begin(function () {
+/*
     var tx = nrf.openPipe('tx', pipes[0], {autoAck:true});
     tx.on('ready', function () {
         nrf._debug = false;
@@ -53,10 +54,9 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         // original will have unpipe, start another!
         (new CountStream).pipe(tx);
     });
-    /*
-    var rx = nrf.openPipe('rx', pipes[1]);
+*/
+    var rx = nrf.openPipe('rx', pipes[0]);
     rx.on('data', function (d) {
         console.log("Got data", d);
     });
-    */
 });
