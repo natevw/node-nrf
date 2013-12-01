@@ -162,21 +162,16 @@ exports.connect = function (spi,ce,irq) {
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
     };
     
-    nrf.pulseCE = function () {
-        ce.value(true);
-        nrf.blockMicroseconds(nrf._T.hce);
-        ce.value(false);
-        // AFAICT, we only need to wait Tpece2csn from *start* of pulse before SPI
-        if (nrf._T.pece2csn > nrf._T.hce) nrf.blockMicroseconds(nrf._T.pece2csn - nrf._T.hce);
-        if (nrf._debug) console.log('pulsed ce');
-    };
-    nrf.setCE = function (state) {
+    nrf.setCE = function (state, block) {
         if (typeof state === 'string') ce.mode(state);
         else ce.value(state);
         if (nrf._debug) console.log("Set CE "+state+".");
-        nrf.blockMicroseconds(nrf._T.stby2a);       // (assume ce changed TX/RX mode)
+        if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
     };
-    nrf.on('interrupt', function (d) { if (nrf._debug) console.log("IRQ.", d); });
+    nrf.pulseCE = function (block) {
+        nrf.setCE(true,'hce');
+        nrf.setCE(false,block);
+    };
     
     // ✓ low level interface (execCommand, getStates, setStates, pulseCE, 'interrupt')
     // ✓ mid level interface (channel, dataRate, power, crcBytes, autoRetransmit{count,delay})
@@ -330,7 +325,7 @@ exports.connect = function (spi,ce,irq) {
         }
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
-            if (!opts.ceHigh) nrf.pulseCE();
+            if (!opts.ceHigh) nrf.pulseCE('pece2csn');
             // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
             nrf.once('interrupt', function (d) {
                 if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
@@ -353,7 +348,7 @@ exports.connect = function (spi,ce,irq) {
             cb = states || _nop;
             states = _m.REGISTER_DEFAULTS;
         }
-        nrf.setCE('low');
+        nrf.setCE('low','stby2a');
         q(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
@@ -396,7 +391,7 @@ exports.connect = function (spi,ce,irq) {
         rxPipes = []
         rxP0 = null;
     nrf.begin = function (cb) {
-        nrf.setCE('low');
+        nrf.setCE('low','stby2a');
         var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
         nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
@@ -413,7 +408,7 @@ exports.connect = function (spi,ce,irq) {
         txPipes.length = rxPipes.length = txQ.length = 0;
         ready = false;
         nrf._irqOff();
-        nrf.setCE(false);
+        nrf.setCE(false,'stby2a');
         nrf.setStates({PWR_UP:false}, function (e) {
             if (e) nrf.emit('error', e);
             else if (cb) cb();
@@ -497,7 +492,7 @@ exports.connect = function (spi,ce,irq) {
             s['DPL_P'+n] = false;
         }
         nrf.setStates(s, function (e) {
-            if (opts._primRX && !rxPipes.length) nrf.setCE(true);
+            if (opts._primRX && !rxPipes.length) nrf.setCE(true,'stby2a');
             if (e) this.emit('error', e);
             else this.emit('ready');
         }.bind(this));
@@ -647,6 +642,8 @@ exports.connect = function (spi,ce,irq) {
         });
         function _h(n) { return (Buffer.isBuffer(n)) ? '0x'+n.toString('hex') : '0x'+n.toString(16); }  
     };
+    
+    nrf.on('interrupt', function (d) { if (nrf._debug) console.log("IRQ.", d); });
     
     return nrf;
 }
