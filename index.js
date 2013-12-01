@@ -501,7 +501,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.setStates(s, function (e) {
             if (opts._primRX && !rxPipes.length) nrf.setCE(true,'stby2a');
             if (e) this.emit('error', e);
-            else this.emit('ready');
+            else this.emit('ready');        // TODO: eliminate need to wait for this (setup on first _rx/_tx?)
         }.bind(this));
         
         var irqHandler = this._rx.bind(this);
