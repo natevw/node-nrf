@@ -479,6 +479,7 @@ exports.connect = function (spi,ce,irq) {
         if (opts._primRX) {
             s['PRIM_RX'] = true;
             if (pipe === 0) rxP0 = this;
+            if (opts.autoAck) nrf._prevSender = null;         // make sure TX doesn't skip setup
         }
         if (opts._enableRX) {
             s['RX_ADDR_P'+n] = addr;
@@ -513,11 +514,13 @@ exports.connect = function (spi,ce,irq) {
     };
     PxX.prototype._tx = function (data, cb) {      // see p.75
         var s = {};
-        if (this._sendOpts.asAckTo || nrf._prevSender === this) {
-            // no states setup needed
+        if (this._sendOpts.asAckTo) {
+            // no config is needed
+        } else if (nrf._prevSender === this) {
+            if (rxPipes.length) s['PRIM_RX'] = false;
         } else {
             s['TX_ADDR'] = this._addr;
-            s['PRIM_RX'] = false;
+            if (rxPipes.length) s['PRIM_RX'] = false;
             if (this._sendOpts.ack) {
                 if (rxP0) rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
                 s['RX_ADDR_P0'] = this._addr;
@@ -532,15 +535,15 @@ exports.connect = function (spi,ce,irq) {
                 if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
                 nrf.sendPayload(data, sendOpts, function (e) {
                     if (e) return cb(e);
-                    var s = {};
-                    if (rxPipes.length) s['PRIM_RX'] = true;
+                    var s = {};                 // NOTE: if another TX is waiting, switching to RX is a waste…
+                    if (rxPipes.length && !this._sendOpts.asAckTo) s['PRIM_RX'] = true;
                     if (this._sendOpts.ack && rxP0) {
                         s['RX_ADDR_P0'] = rxP0._addr;
                         rxP0._pipe = 0;
                     }
                     nrf.setStates(s, cb);
                 }.bind(this));
-                nrf._prevSender = this;    // we might avoid setting state next time
+                if (!rxPipes.length) nrf._prevSender = this;    // we might avoid setting state next time
             } catch (e) {
                 cb(e);
             }
