@@ -55,8 +55,13 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         (new CountStream).pipe(tx);
     });
 */
-    var rx = nrf.openPipe('rx', pipes[0]);
+    var rx = nrf.openPipe('rx', pipes[0]),
+        tx = nrf.openPipe('tx', pipes[1]);
     rx.on('data', function (d) {
-        console.log("Got data", d);
+        console.log("Got data, will respond", d.readUInt32BE(0));
+        tx.write(d);
+    });
+    tx.on('error', function (e) {
+        console.warn("Error sending reply.", e);
     });
 });
