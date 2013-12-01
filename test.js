@@ -14,9 +14,17 @@ function TimeStream(ms) {
 }
 util.inherits(TimeStream, stream.Readable);
 TimeStream.prototype._read = function () {
-    //this.push(new Date().toISOString());
-    var b = Buffer(4);
-    b.writeUInt32BE(Date.now());
+    this.push(new Date().toISOString());
+};
+
+function CountStream(ms) {
+    stream.Readable.call(this);
+    this._n = 0;
+}
+util.inherits(CountStream, stream.Readable);
+CountStream.prototype._read = function () {
+    var b = new Buffer(4);
+    b.writeUInt32BE(this._n++, 0);
     this.push(b);
 };
 
@@ -30,13 +38,14 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         nrf._debug = false;
         nrf.printDetails(function () {
             nrf._debug = true;
-            (new TimeStream).pipe(tx);
+            //(new TimeStream).pipe(tx);
+            (new CountStream).pipe(tx);
             return;
             
             var num = 0;
             setInterval(function () {
                 tx.write(Buffer([0,0,0,num++]));
-            }, 1e3);
+            }, 5e3);
         });
     });
     tx.on('error', function (e) {
