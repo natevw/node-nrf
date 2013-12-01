@@ -126,6 +126,7 @@ exports.connect = function (spi,ce,irq) {
         });
     };
     
+    var _statusReg = REGISTER_MAP['STATUS'][0];
     nrf.setStates = function (vals, cb) {
         if (nrf._debug) console.log('setStates', vals);
         if (!cb) cb = _nop;
@@ -155,11 +156,11 @@ exports.connect = function (spi,ce,irq) {
                     val &= ~m.mask;        // clear current value
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
-                if (val !== d[0]) nrf.execCommand(['W_REGISTER', reg], [val], function () {
+                if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function () {
                     if (settlingNeeded) nrf.blockMicroseconds(settlingNeeded);  // see p.24
                     cb.apply(this, arguments);
                 });
-                else cb(null);  // don't bother writing if value hasn't changed
+                else cb(null);  // don't bother writing if value hasn't changed (unless status, which clears bits)
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
