@@ -13,17 +13,13 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         var tx = nrf.openPipe('tx', pipes[0]),
             rx = nrf.openPipe('rx', pipes[1]);
         var count = 0;
+        rx.on('data', function (d) {
+            console.log("Got response back:", d.readUInt32BE(0));
+        });
         setInterval(function () {
-            var read = rx.read();
-            if (read) {
-                console.log("Got response back:", read.slice(-4).readUInt32BE(0));
-            } else if (count) {
-                console.warn("No response received.");
-            }
-            
+            console.log("Pinging out:", count);
             var send = new Buffer(4);
             send.writeUInt32BE(count++, 0);
-            console.log("Pinging out:", count);
             tx.write(send, function (e) {
                 if (e) console.warn(e);
             });
