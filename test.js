@@ -16,13 +16,13 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         setInterval(function () {
             var read = rx.read(4);
             if (read) {
-                console.log("Got response back:", read.readUint32BE(0));
+                console.log("Got response back:", read.readUInt32BE(0));
             } else {
                 console.warn("No response received.");
             }
             
             var send = new Buffer(4);
-            send.writeUInt32BE(this._n++, 0);
+            send.writeUInt32BE(count++, 0);
             tx.write(send, function (e) {
                 if (e) console.warn(e);
             });
