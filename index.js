@@ -334,6 +334,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
             if (!opts.ceHigh) nrf.pulseCE('pece2csn');
+            else nrf.blockMicroseconds('stby2a');       // not sure if this is needed, but there is a settling period
             // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
             nrf.once('interrupt', function (d) {
                 if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
