@@ -14,9 +14,9 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
             rx = nrf.openPipe('rx', pipes[1]);
         var count = 0;
         setInterval(function () {
-            var read = rx.read(4);
+            var read = rx.read();
             if (read) {
-                console.log("Got response back:", read.readUInt32BE(0));
+                console.log("Got response back:", read.slice(-4).readUInt32BE(0));
             } else if (count) {
                 console.warn("No response received.");
             }
