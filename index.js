@@ -534,7 +534,10 @@ exports.connect = function (spi,ce,irq) {
             }
         } else {
             s['TX_ADDR'] = this._addr;
-            if (rxPipes.length) s['PRIM_RX'] = false;
+            if (rxPipes.length) {
+                nrf.setCE('low');
+                s['PRIM_RX'] = false;
+            }
             if (this._sendOpts.ack) {
                 if (rxP0) rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
                 s['RX_ADDR_P0'] = this._addr;
