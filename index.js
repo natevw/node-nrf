@@ -334,7 +334,6 @@ exports.connect = function (spi,ce,irq) {
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
             if (!opts.ceHigh) nrf.pulseCE('pece2csn');
-            else nrf.blockMicroseconds('stby2a');       // not sure if this is needed, but there is a settling period
             // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
             nrf.once('interrupt', function (d) {
                 if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
@@ -529,7 +528,10 @@ exports.connect = function (spi,ce,irq) {
         if (this._sendOpts.asAckTo) {
             // no config is needed
         } else if (nrf._prevSender === this) {
-            if (rxPipes.length) s['PRIM_RX'] = false;
+            if (rxPipes.length) {
+                nrf.setCE('low');       // this or PWR_UP:0 are the only ways out of RX mode acc to p.22
+                s['PRIM_RX'] = false;
+            }
         } else {
             s['TX_ADDR'] = this._addr;
             if (rxPipes.length) s['PRIM_RX'] = false;
@@ -544,11 +546,14 @@ exports.connect = function (spi,ce,irq) {
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             var sendOpts = _extend({},this._sendOpts);
-            if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
+            //if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
             nrf.sendPayload(data, sendOpts, function (e) {
                 if (e) return cb(e);
                 var s = {};                 // NOTE: if another TX is waiting, switching to RX is a waste…
-                if (rxPipes.length && !this._sendOpts.asAckTo) s['PRIM_RX'] = true;
+                if (rxPipes.length && !this._sendOpts.asAckTo) {
+                    nrf.setCE('high');
+                    s['PRIM_RX'] = true;
+                }
                 if (this._sendOpts.ack && rxP0) {
                     s['RX_ADDR_P0'] = rxP0._addr;
                     rxP0._pipe = 0;
