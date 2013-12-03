@@ -7,7 +7,7 @@ var NRF24 = require("./index"),
     role = 'ping';
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
-nrf._debug = true;
+//nrf._debug = true;
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:4000}).begin(function () {
     if (role === 'ping') {
         var tx = nrf.openPipe('tx', pipes[0]),
@@ -17,7 +17,7 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
             var read = rx.read(4);
             if (read) {
                 console.log("Got response back:", read.readUInt32BE(0));
-            } else {
+            } else if (count) {
                 console.warn("No response received.");
             }
             
