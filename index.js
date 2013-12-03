@@ -311,7 +311,7 @@ exports.connect = function (spi,ce,irq) {
         
         function finish(e,d) {  // see footnote c, p.62
             if (opts.leaveStatus) cb(e,d);
-            else nrf.setStates({RX_DR:true}, function (e2) {    
+            else nrf.setStates({RX_DR:true,TX_DS:false,MAX_RT:false}, function (e2) {    
                 cb(e||e2,d);
             });
         }
