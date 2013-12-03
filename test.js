@@ -3,65 +3,39 @@
 var NRF24 = require("./index"),
     spiDev = "/dev/spidev0.0",
     cePin = 24, irqPin = 25,            //var ce = require("./gpio").connect(cePin)
-    pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2];
-
-
-var stream = require('stream'),
-    util = require('util');
-
-function TimeStream(ms) {
-    stream.Readable.call(this);
-}
-util.inherits(TimeStream, stream.Readable);
-TimeStream.prototype._read = function () {
-    this.push(new Date().toISOString());
-};
-
-function CountStream(ms) {
-    stream.Readable.call(this);
-    this._n = 0;
-}
-util.inherits(CountStream, stream.Readable);
-CountStream.prototype._read = function () {
-    var b = new Buffer(4);
-    b.writeUInt32BE(this._n++, 0);
-    this.push(b);
-};
-
-
+    pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2],
+    role = 'ping';
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf._debug = true;
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:500}).begin(function () {
-/*
-    var tx = nrf.openPipe('tx', pipes[0], {autoAck:true});
-    tx.on('ready', function () {
-        nrf._debug = false;
-        nrf.printDetails(function () {
-            nrf._debug = true;
-            //(new TimeStream).pipe(tx);
-            (new CountStream).pipe(tx);
-            return;
+    if (role === 'ping') {
+        var tx = nrf.openPipe('tx', pipes[0]),
+            rx = nrf.openPipe('rx', pipes[1]);
+        var count = 0;
+        setInterval(function () {
+            var read = rx.read(4);
+            if (read) {
+                console.log("Got response back:", read.readUint32BE(0));
+            } else {
+                console.warn("No response received.");
+            }
             
-            var num = 0;
-            setInterval(function () {
-                tx.write(Buffer([0,0,0,num++]));
-            }, 5e3);
+            var send = new Buffer(4);
+            send.writeUInt32BE(this._n++, 0);
+            tx.write(send, function (e) {
+                if (e) console.warn(e);
+            });
+        }, 1e3);
+    } else {    // pong back
+        var rx = nrf.openPipe('rx', pipes[0]),
+            tx = nrf.openPipe('tx', pipes[1]);
+        rx.on('data', function (d) {
+            console.log("Got data, will respond", d.readUInt32BE(0));
+            tx.write(d);
         });
-    });
-    tx.on('error', function (e) {
-        console.warn("TX error", e);
-        // original will have unpipe, start another!
-        (new CountStream).pipe(tx);
-    });
-*/
-    var rx = nrf.openPipe('rx', pipes[0]),
-        tx = nrf.openPipe('tx', pipes[1]);
-    rx.on('data', function (d) {
-        console.log("Got data, will respond", d.readUInt32BE(0));
-        tx.write(d);
-    });
-    tx.on('error', function (e) {
-        console.warn("Error sending reply.", e);
-    });
+        tx.on('error', function (e) {
+            console.warn("Error sending reply.", e);
+        });
+    }
 });
