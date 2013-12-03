@@ -8,7 +8,7 @@ var NRF24 = require("./index"),
 
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 nrf._debug = true;
-nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:500}).begin(function () {
+nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:4000}).begin(function () {
     if (role === 'ping') {
         var tx = nrf.openPipe('tx', pipes[0]),
             rx = nrf.openPipe('rx', pipes[1]);
