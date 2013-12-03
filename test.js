@@ -6,6 +6,20 @@ var NRF24 = require("./index"),
     pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2],
     role = 'ping';
 
+var stream = require('stream'),
+    util = require('util');
+function CountStream(ms) {
+    stream.Readable.call(this);
+    this._n = 0;
+}
+util.inherits(CountStream, stream.Readable);
+CountStream.prototype._read = function () {
+    console.log("Piping out", this._n);
+    var b = new Buffer(4);
+    b.writeUInt32BE(this._n++, 0);
+    this.push(b);
+};
+
 var nrf = NRF24.connect(spiDev, cePin, irqPin);
 //nrf._debug = true;
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:4000}).begin(function () {
@@ -16,14 +30,9 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         rx.on('data', function (d) {
             console.log("Got response back:", d.readUInt32BE(0));
         });
-        setInterval(function () {
-            console.log("Pinging out:", count);
-            var send = new Buffer(4);
-            send.writeUInt32BE(count++, 0);
-            tx.write(send, function (e) {
-                if (e) console.warn(e);
-            });
-        }, 1e3);
+        tx.on('ready', function () {    // NOTE: hoping to get rid of need to wait for "ready"
+            (new CountStream).pipe(tx);
+        });
     } else {    // pong back
         var rx = nrf.openPipe('rx', pipes[0]),
             tx = nrf.openPipe('tx', pipes[1]);
