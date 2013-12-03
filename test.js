@@ -23,6 +23,7 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
             
             var send = new Buffer(4);
             send.writeUInt32BE(count++, 0);
+            console.log("Pinging out:", count);
             tx.write(send, function (e) {
                 if (e) console.warn(e);
             });
