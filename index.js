@@ -40,7 +40,7 @@ exports.connect = function (spi,ce,irq) {
             if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
         }
         if (nrf._debug) console.log("blocked for "+us+"µs.");
-    }
+    };
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
         if (typeof data === 'function' || typeof data === 'undefined') {
