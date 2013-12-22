@@ -1,6 +1,6 @@
 {
-  "name": "node-nrf",
-  "version": "0.0.0",
+  "name": "nrf",
+  "version": "0.7.0",
   "description": "nRF24L01 driver library",
   "main": "index.js",
   "scripts": {
@@ -19,6 +19,7 @@
   ],
   "author": "Nathan Vander Wilt",
   "license": "BSD-2-Clause",
+  "homepage": "https://github.com/natevw/node-nrf",
   "bugs": {
     "url": "https://github.com/natevw/node-nrf/issues"
   },
