@@ -1,9 +1,7 @@
-var q = require('queue-async'),
+var q = require("queue.min"),       // queue-async
     stream = require('stream'),
     util = require('util'),
     events = require('events'),
-    SPI = require('pi-spi'),
-    GPIO = require("./gpio"),
     _m = require("./magicnums");
 
 function forEachWithCB(fn, cb) {
@@ -23,22 +21,20 @@ function _extend(obj) {
 function _nop() {}          // used when a cb is not provided
 
 
-exports.connect = function (spi,ce,irq) {
+exports.connect = function (port) {
     var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
     var nrf = new events.EventEmitter(),
-        spi = SPI.initialize(spi),
-        ce = GPIO.connect(ce),
-        irq = (arguments.length > 2) && GPIO.connect(irq);
+        spi = new port.SPI({chipSelect:port.pin(1)}),
+        ce = port.pin(2),
+        irq = false;        // port.pin(3) but I don't think triggering is available
     
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
+    nrf._T._tesselSpinloopScale = 1;
     
     nrf.blockMicroseconds = function (us) {
-        // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
-        var start = process.hrtime();
-        while (1) {
-            var diff = process.hrtime(start);
-            if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
-        }
+        // NOTE: setImmediate/process.nextTick too slow (especially/even on Pi) so we just spinloop for µs
+        var t = us * nrf._T._tesselSpinloopScale;
+        while (t--) ;           // see https://github.com/tessel/beta/issues/55
         if (nrf._debug) console.log("blocked for "+us+"µs.");
     };
     
