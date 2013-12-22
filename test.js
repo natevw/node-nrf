@@ -24,6 +24,7 @@ var nrf = NRF24.connect(spiDev, cePin, irqPin);
 //nrf._debug = true;
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:4000}).begin(function () {
     if (role === 'ping') {
+        console.log("PING out");
         var tx = nrf.openPipe('tx', pipes[0]),
             rx = nrf.openPipe('rx', pipes[1]);
         var count = 0;
@@ -33,7 +34,8 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         tx.on('ready', function () {    // NOTE: hoping to get rid of need to wait for "ready"
             (new CountStream).pipe(tx);
         });
-    } else {    // pong back
+    } else {
+        console.log("PONG back");
         var rx = nrf.openPipe('rx', pipes[0]),
             tx = nrf.openPipe('tx', pipes[1]);
         rx.on('data', function (d) {
