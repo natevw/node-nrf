@@ -476,7 +476,7 @@ exports.connect = function (spi,ce,irq) {
     };
     
     function PxX(pipe, addr, opts) {           // base for PTX/PRX
-        stream.Duplex.call(this);
+        stream.Duplex.call(this,{highWaterMark:64});
         this.opts = opts;
         this._pipe = pipe;
         this._addr = addr;
