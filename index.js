@@ -2,9 +2,40 @@ var q = require('queue-async'),
     stream = require('stream'),
     util = require('util'),
     events = require('events'),
-    SPI = require('pi-spi'),
-    GPIO = require('pi-pins'),
     _m = require("./magicnums");
+
+var tessel;
+try {
+    tessel = require('tessel');
+} catch (e) {}
+
+// WORKAROUND: https://github.com/tessel/beta/issues/199
+console.warn = console.error.bind(console);
+
+// WORKAROUND: https://github.com/tessel/beta/issues/62
+if (!stream.Duplex) {
+    var events = require('events');
+    
+    stream.Duplex = function () {
+        events.EventEmitter.call(this);
+        this.on('newListener', function (evtName) {
+            if (evtName === 'data') this._read();
+        }.bind(this));
+    };
+    util.inherits(stream.Duplex, events.EventEmitter);
+    
+    stream.Duplex.prototype.write = function (data) {
+        this._write(data);
+        return true;
+    };
+    
+    stream.Duplex.prototype.push = function (data) {
+        this.emit('data', data);
+        return true;
+    };
+}
+
+
 
 function forEachWithCB(fn, cb) {
     var process = q(1);
@@ -23,16 +54,65 @@ function _extend(obj) {
 function _nop() {}          // used when a cb is not provided
 
 
-exports.connect = function (spi,ce,irq) {
-    var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
+// TODO: remove when https://github.com/tessel/beta/issues/209 resolved
+function Buffer_workaround(str, fmt) {
+    if (!fmt) return Buffer(str);
+    else if (fmt === 'hex') {     // avoid https://github.com/tessel/beta/issues/211
+        if (str.length % 2) throw /*Type*/Error("Invalid hex string");
+        var arr = [];
+        for (var i = 0; i < str.length; i += 2) {
+            // also workaround https://github.com/tessel/beta/issues/206
+            var n = Number('0x'+str.slice(i, i+2));
+            arr.push(n);
+        }
+        return Buffer(arr);
+    } else {
+        throw Error("Not implemented: buffer conversion from "+fmt);
+    }
+}
+
+
+// TODO: remove when https://github.com/tessel/beta/issues/202 resolved
+var _origBuffString = Buffer.prototype.toString;
+Buffer.prototype.toString = function (fmt) {
+    if (!fmt) return _origBuffString.call(this);
+    else if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
+        return (0x100+n).toString(16).slice(1);
+    }).join('');
+    else throw Error("Not implemented: buffer conversion to "+fmt);
+}
+
+
+exports.connect = function (port) {
+    var _spi = "Tessel", _ce = "builtin", _irq = "-";       // only for printDetails!
     var nrf = new events.EventEmitter(),
-        spi = SPI.initialize(spi),
-        ce = GPIO.connect(ce),
-        irq = (arguments.length > 2) && GPIO.connect(irq);
+        spi = new port.SPI({chipSelect:port.gpio(1)}),
+        ce = port.gpio(2),
+        irq = port.gpio(3);
+    
+    // Tessel's transfer always returns as much data as sent
+    spi._nrf_transfer = function (writeBuf, readLen, cb) {
+        if (readLen > writeBuf.length) {
+            var tmpBuff = Buffer(readLen);
+            tmpBuff.fill(0);
+            writeBuf.copy(tmpBuff);
+            writeBuf = tmpBuff;
+        }
+        
+        spi.transfer(writeBuf, function (e,d) {
+            spi.activeChipSelect(false);
+            if (e) cb(e); // WORKAROUND: https://github.com/tessel/beta/issues/203
+            else cb(null, Buffer(d).slice(0,readLen));
+        });
+    };
+    
     
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
     
-    nrf.blockMicroseconds = function (us) {
+    nrf.blockMicroseconds = (tessel) ? function (us) {
+        tessel.sleep(us);
+        if (nrf._debug) console.log("slept for "+us+"µs.");
+    } : function (us) {
         // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
         var start = process.hrtime();
         while (1) {
@@ -47,7 +127,6 @@ exports.connect = function (spi,ce,irq) {
             cb = data || _nop;
             data = 0;
         }
-        if (nrf._debug) console.log('execCommand', cmd, data);
         
         var cmdByte;
         if (typeof cmd === 'string') {
@@ -73,8 +152,10 @@ exports.connect = function (spi,ce,irq) {
             readLen = data;
         }
         
-        spi.transfer(writeBuf, readLen && readLen+1, function (e,d) {
-            if (nrf._debug && readLen) console.log(' - exec read:', d);
+        if (nrf._debug) console.log('execCommand', cmd, readLen, writeBuf);
+        
+        spi._nrf_transfer(writeBuf, readLen && readLen+1, function (e,d) {
+            if (nrf._debug && readLen) console.log(' - got:', d);
             if (e) return cb(e);
             else return cb(null, d && Array.prototype.reverse.call(d.slice(1)));
         });
@@ -84,10 +165,11 @@ exports.connect = function (spi,ce,irq) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
             var _r = _m.REGISTER_MAP[mnem];
-            if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
-            if (_r.length === 1) _r.push(0,8);
+                 // WORKAROUND: https://github.com/tessel/beta/issues/200
+            if (!Boolean(_r)) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
+            if (_r.length === 1) _r.push(0), _r.push(8);
             
-            var reg = _r[0],
+            var reg = _r[0]+'', // WORKAROUND: https://github.com/tessel/beta/issues/201
                 howManyBits = _r[2] || 1,
                 iq = registersNeeded[reg] || (registersNeeded[reg] = {arr:[]});
             iq.len = (howManyBits / 8 >> 0) || 1;
@@ -112,7 +194,10 @@ exports.connect = function (spi,ce,irq) {
             // TODO: execCommand always reads register 0x07 but we're not optimizing for that
             // TODO: we could probably also eliminate re-fetch of 0x07 during IRQ processing
             var iq = registersNeeded[reg];
-            reg = +reg;
+            //reg = +reg;
+            // WORKAROUND: https://github.com/tessel/beta/issues/204
+            reg = parseInt(reg, 10);
+            
             nrf.execCommand(['R_REGISTER',reg], iq.len, function (e,d) {
                 if (e) return cb(e);
                 iq.arr.forEach(function (mnem) {
@@ -120,7 +205,7 @@ exports.connect = function (spi,ce,irq) {
                     states[mnem] = (d[0] & m.mask) >> m.rightmostBit;
                 });
                 if (iq.solo) states[iq.solo] = d;
-                cb();
+                cb(null, '-');       // workaround for https://github.com/tessel/beta/issues/85
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
@@ -136,7 +221,10 @@ exports.connect = function (spi,ce,irq) {
         var registersNeeded = registersForMnemonics(Object.keys(vals));
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
-            reg = +reg;     // was string key, now convert back to number
+            //reg = +reg;     // was string key, now convert back to number
+            // WORKAROUND: https://github.com/tessel/beta/issues/204
+            reg = parseInt(reg, 10);
+            
             // if a register is "full" we can simply overwrite, otherwise we must read+merge
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
             if (!iq.arr.length || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
@@ -149,6 +237,9 @@ exports.connect = function (spi,ce,irq) {
                     settlingNeeded = 0;
                 if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
+                    // WORKAROUND: https://github.com/tessel/beta/issues/87
+                    if (typeof vals[mnem] === 'boolean') vals[mnem] = (vals[mnem]) ? 1 : 0;
+                    
                     var m = maskForMnemonic(mnem);
                     if (mnem === 'PWR_UP') {
                         var rising = !(d[0] & m.mask) && vals[mnem];
@@ -160,17 +251,30 @@ exports.connect = function (spi,ce,irq) {
                     val &= ~m.mask;        // clear current value
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
-                if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function () {
+                if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function (e,d) {
                     if (settlingNeeded) nrf.blockMicroseconds(settlingNeeded);  // see p.24
-                    cb.apply(this, arguments);
+                    // WORKAROUND: https://github.com/tessel/beta/issues/207
+                    //cb.apply(this, arguments);
+                    cb.call(this, e,d);
                 });
-                else cb(null);  // don't bother writing if value hasn't changed (unless status, which clears bits)
+                else cb(null, '-');  // don't bother writing if value hasn't changed (unless status, which clears bits)
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
     };
     
-    nrf.setCE = function (state, block) {
+    nrf.setCE = (tessel) ? function (state, block) {
+        if (typeof state === 'string') {
+            ce.mode('input');
+            if (state === 'high') state = true;
+            else if (state === 'low') state = false;
+            else throw Error("Unsupported setCE mode: "+state);
+        }
+        if (state) ce.high();
+        else ce.low();
+        if (nrf._debug) console.log("Set CE "+state+".");
+        if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
+    } : function (state, block) {
         if (typeof state === 'string') ce.mode(state);
         else ce.value(state);
         if (nrf._debug) console.log("Set CE "+state+".");
@@ -215,19 +319,10 @@ exports.connect = function (spi,ce,irq) {
                 else cb(null, '1Mbps');
             });
         } else {
-            switch (val) {
-                case '1Mbps':
-                    val = {RF_DR_LOW:false,RF_DR_HIGH:false};
-                    break;
-                case '2Mbps':
-                    val = {RF_DR_LOW:false,RF_DR_HIGH:true};
-                    break;
-                case '250kbps':
-                    val = {RF_DR_LOW:true,RF_DR_HIGH:false};
-                    break;
-                default:
-                    throw Error("dataRate must be one of '1Mbps', '2Mbps', or '250kbps'.");
-            }
+            if (val === '1Mbps') val = {RF_DR_LOW:false,RF_DR_HIGH:false};
+            else if (val === '2Mbps') val = {RF_DR_LOW:false,RF_DR_HIGH:true};
+            else if (val == '250kbps') val = {RF_DR_LOW:true,RF_DR_HIGH:false};
+            else throw Error("dataRate must be one of '1Mbps', '2Mbps', or '250kbps'.");
             nrf.setStates(val, cb);
         }
         return this;
@@ -255,19 +350,10 @@ exports.connect = function (spi,ce,irq) {
                 else cb(null, 1);
             });
         } else {
-            switch (val) {
-                case 0:
-                    val = {EN_CRC:false,CRCO:0};
-                    break;
-                case 1:
-                    val = {EN_CRC:true,CRCO:0};
-                    break;
-                case 2:
-                    val = {EN_CRC:true,CRCO:1};
-                    break;
-                default:
-                    throw Error("crcBytes must be 1, 2, or 0.");
-            }
+            if (val === 0) val = {EN_CRC:false,CRCO:0};
+            else if (val === 1) val = {EN_CRC:true,CRCO:0};
+            else if (val === 2) val = {EN_CRC:true,CRCO:1};
+            else throw Error("crcBytes must be 1, 2, or 0.");
             nrf.setStates(val, cb);
         }
         return this;
@@ -387,9 +473,20 @@ exports.connect = function (spi,ce,irq) {
         irqOn = false;
     nrf._irqOn = function () {
         if (irqOn) return;
-        else if (irq) {
+        else if (irq && !tessel) {
             irq.mode('in');
             irq.addListener('fall', irqListener);
+        } else if (irq) {
+            // hybrid mode: polling, but of IRQ pin instead of nrf status
+            // TODO: use hardware interrupt https://github.com/tessel/beta/issues/216
+            irq.mode('input');
+            var prevIdle = true;
+            irqListener = setInterval(function () {
+                var idle = irq.read();
+                //if (nrf._debug) console.log("polled irq, idle:", idle);
+                if (prevIdle && !idle) nrf._checkStatus(true);
+                prevIdle = idle;
+            }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
             irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners?
@@ -400,7 +497,7 @@ exports.connect = function (spi,ce,irq) {
     };
     nrf._irqOff = function () {
         if (!irqOn) return;
-        else if (irq) irq.removeListener('fall', irqListener);
+        else if (irq && !tessel) irq.removeListener('fall', irqListener);
         else clearInterval(irqListener);
         irqOn = false;
     };
@@ -414,7 +511,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.setCE('low','stby2a');
         var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
-        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
+        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e,d) {
             if (e) return nrf.emit('error', e);
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
@@ -450,8 +547,13 @@ exports.connect = function (spi,ce,irq) {
         }
     }
     nrf.openPipe = function (rx_tx, addr, opts) {
+        if (tessel && typeof addr === 'number') throw Error(
+            "Please don't use hex literal addresses on Tessel, "
+            +"see https://github.com/tessel/beta/issues/213"
+        );
         if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
         if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');
+        else if (typeof addr == 'string') addr = Buffer_workaround(addr, 'hex');
         opts || (opts = {});
         
         var pipe;
@@ -473,8 +575,11 @@ exports.connect = function (spi,ce,irq) {
         txQ.active = true;
         d.pipe._tx(d.data, function () {
             try {
+                // NOTE: skipping https://github.com/tessel/beta/issues/207 workaround since should only have 1 argument…
                 d.cb.apply(this, arguments);
-            } finally {
+            //} finally {
+            // WORKAROUND: https://github.com/tessel/beta/issues/198 (not quite equivalent, this drops exception!)
+            } catch (e) {} if (1) {
                 delete txQ.active;
                 nrf._nudgeTX();
             }
@@ -652,7 +757,7 @@ exports.connect = function (spi,ce,irq) {
                                 logFinalDetails();
                             } else nrf.setStates({RF_DR_LOW:true}, function () {
                                 nrf.getStates(['RF_DR_LOW'], function (e,d2) {
-                                    // (non-plus chips hold this bit zero even after settting)
+                                    // (non-plus chips hold this bit zero even after setting)
                                     if (d2.RF_DR_LOW) isPlus = true;
                                     // …then set back to original (false) value again
                                     nrf.setStates({RF_DR_LOW:false}, function () {
