@@ -1,10 +1,14 @@
 # node-nrf
 
-nRF24L01+ driver library for node.js on the Raspberry Pi (etc.)
+nRF24L01+ driver library for node.js on platforms like the [Raspberry Pi](http://en.wikipedia.org/wiki/Raspberry_Pi) and [others](http://tessel.io/).
 
-Not to be confused with [node-rf24](https://github.com/natevw/node-rf24) which is an unfinished (and broken by recent V8/libuv changes) wrapper around the RasPi port of the C++ [RF24 library](https://github.com/stanleyseow/RF24).
+Making this inexpensive radio chip easy to use from node.js helps bridge the wider Internet with small/cheap "things" — other embedded devices like [Arduino](http://arduino.cc/), [Teensy](http://www.pjrc.com/teensy/), good ol'fashioned [AVR chips](https://www.sparkfun.com/products/11232), … — where the costs of WiFi/Bluetooth/Zigbee radios can quickly add up! This fulfills a critical dependency of my [Microstates](https://github.com/natevw/microstates) idea, for just one example.
 
-This module is implemented in pure JavaScript, on top of native [SPI bindings](https://github.com/natevw/pi-spi).
+## See also?
+
+Not to be confused with [node-rf24](https://github.com/natevw/node-rf24) which was/is an unfinished (and broken by recent V8 and libuv changes) wrapper around the RasPi port of the C++ [RF24 library](https://github.com/stanleyseow/RF24).
+
+In contrast, *this* module is implemented in pure JavaScript on top of native [SPI bindings](https://github.com/natevw/pi-spi). It also provides a cleaner, node-friendly interface.
 
 
 ## Installation
@@ -14,7 +18,7 @@ This module is implemented in pure JavaScript, on top of native [SPI bindings](h
 
 ## Usage
 
-Streams!
+[Streams](https://github.com/substack/stream-handbook#readme)!
 
 ```
 var radio = require('nrf').connect(spiDev, cePin, irqPin);
@@ -28,7 +32,7 @@ radio.begin(function () {
 
 The nRF24L01+ radios provide "logic pipes" which can be used as node.js streams. These are opened for a given receiver address according to their primary direction. However, since the transceiver hardware supports sending data payloads with its acknowlegement packets, the both primary directions provide duplex streams — acknowlegement payload data can be read from a `'tx'` stream if the `ackPayloads` option is set true, and written to any `'rx'` stream.
 
-> **TBD**: expand this section ["non"-stream usage, pipe options, optional callbacks, etc.]
+> **TBD**: expand this section ["non"-stream usage, pipe options, optional callbacks, buffering and splitting/joining streams from 32-byte chunks, etc.]
 
 
 ## API
