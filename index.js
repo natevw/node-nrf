@@ -1,4 +1,4 @@
-var q = require("queue.min"),       // queue-async
+var q = require("./queue.min"),       // queue-async
     stream = require('stream'),
     util = require('util'),
     events = require('events'),
@@ -24,9 +24,9 @@ function _nop() {}          // used when a cb is not provided
 exports.connect = function (port) {
     var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
     var nrf = new events.EventEmitter(),
-        spi = new port.SPI({chipSelect:port.pin(1)}),
-        ce = port.pin(2),
-        irq = false;        // port.pin(3) but I don't think triggering is available
+        spi = new port.SPI({chipSelect:port.gpio(1)}),
+        ce = port.gpio(2),
+        irq = false;        // port.gpio(3) but I don't think triggering is available
     
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
     nrf._T._tesselSpinloopScale = 1;
@@ -668,3 +668,7 @@ exports.connect = function (port) {
     
     return nrf;
 }
+
+var tessel = require('tessel'),
+    nrf = exports.connect(tessel.port('a'));
+nrf.printDetails();
