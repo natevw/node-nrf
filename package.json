@@ -23,5 +23,7 @@
   "bugs": {
     "url": "https://github.com/natevw/node-nrf/issues"
   },
-  "dependencies": {}
+  "dependencies": {
+    "queue-async": "~1.0.7"
+  }
 }
