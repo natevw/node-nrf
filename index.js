@@ -21,7 +21,7 @@ function _extend(obj) {
 function _nop() {}          // used when a cb is not provided
 
 
-exports.connect = function (port) {
+exports.connect = function (tessel, port) {
     var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
     var nrf = new events.EventEmitter(),
         spi = new port.SPI({chipSelect:port.gpio(1)}),
@@ -31,12 +31,7 @@ exports.connect = function (port) {
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
     nrf._T._tesselSpinloopScale = 1;
     
-    nrf.blockMicroseconds = function (us) {
-        // NOTE: setImmediate/process.nextTick too slow (especially/even on Pi) so we just spinloop for µs
-        var t = us * nrf._T._tesselSpinloopScale;
-        while (t--) ;           // see https://github.com/tessel/beta/issues/55
-        if (nrf._debug) console.log("blocked for "+us+"µs.");
-    };
+    nrf.blockMicroseconds = tessel.sleep;
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
         if (typeof data === 'function' || typeof data === 'undefined') {
@@ -669,6 +664,8 @@ exports.connect = function (port) {
     return nrf;
 }
 
+console.log("Stream: ", Object.keys(stream));
+
 var tessel = require('tessel'),
-    nrf = exports.connect(tessel.port('a'));
+    nrf = exports.connect(tessel, tessel.port('a'));
 nrf.printDetails();
