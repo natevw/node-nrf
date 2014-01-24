@@ -467,7 +467,7 @@ exports.connect = function (tessel, port) {
     };
     
     function PxX(pipe, addr, opts) {           // base for PTX/PRX
-        stream.Duplex.call(this,{highWaterMark:64});
+        //stream.Duplex.call(this,{highWaterMark:64});
         this.opts = opts;
         this._pipe = pipe;
         this._addr = addr;
@@ -509,7 +509,7 @@ exports.connect = function (tessel, port) {
             nrf.removeListener('interrupt', irqHandler);
         });
     }
-    util.inherits(PxX, stream.Duplex);
+    //util.inherits(PxX, stream.Duplex);
     PxX.prototype._write = function (buff, _enc, cb) {
         txQ.push({pipe:this,data:buff,cb:cb});
         nrf._nudgeTX();
