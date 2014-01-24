@@ -1,8 +1,8 @@
-var q = require('queue'),
+var q = require('queue-async'),
     stream = require('stream'),
     util = require('util'),
-    events = require('events');/*,
-    _m = require("magicnums");*/
+    events = require('events'),
+    _m = require("./magicnums");
 
 function forEachWithCB(fn, cb) {
     var process = q(1);
