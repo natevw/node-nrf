@@ -21,6 +21,9 @@ function _extend(obj) {
 
 function _nop() {}          // used when a cb is not provided
 
+// TODO: remove when https://github.com/tessel/beta/issues/74 fully shipped
+Buffer.isBuffer = function (b) { return Boolean('readUInt8' in b); }
+
 
 exports.connect = function (tessel, port) {
     var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
