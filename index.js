@@ -685,4 +685,5 @@ exports.connect = function (tessel, port) {
 
 var tessel = require('tessel'),
     nrf = exports.connect(tessel, tessel.port('a'));
+nrf._debug = true;
 nrf.printDetails();
