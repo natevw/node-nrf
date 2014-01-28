@@ -32,6 +32,21 @@ exports.connect = function (tessel, port) {
         ce = port.gpio(2),
         irq = false;        // port.gpio(3) but I don't think triggering is available
     
+    // Tessel's transfer always returns as much data as sent
+    spi._nrf_transfer = function (writeBuf, readLen, cb) {
+        if (readLen > writeBuf.length) {
+            var tmpBuff = Buffer(readLen);
+            tmpBuff.fill(0);
+            writeBuf.copy(tmpBuff);
+            writeBuf = tmpBuff;
+        }
+        spi.transfer(writeBuf, function (e,d) {
+            if (e) cb(e);
+            else cb(null, d.slice(0,readLen));
+        });
+    };
+    
+    
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
     nrf._T._tesselSpinloopScale = 1;
     
@@ -68,7 +83,7 @@ exports.connect = function (tessel, port) {
             readLen = data;
         }
         
-        spi.transfer(writeBuf, readLen && readLen+1, function (e,d) {
+        spi._nrf_transfer(writeBuf, readLen && readLen+1, function (e,d) {
             if (nrf._debug && readLen) console.log(' - exec read:', d);
             if (e) return cb(e);
             else return cb(null, d && Array.prototype.reverse.call(d.slice(1)));
