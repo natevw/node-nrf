@@ -668,8 +668,6 @@ exports.connect = function (tessel, port) {
     return nrf;
 }
 
-console.log("Stream: ", Object.keys(stream));
-
 var tessel = require('tessel'),
     nrf = exports.connect(tessel, tessel.port('a'));
 nrf.printDetails();
