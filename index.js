@@ -40,7 +40,11 @@ exports.connect = function (tessel, port) {
             writeBuf.copy(tmpBuff);
             writeBuf = tmpBuff;
         }
+        
+        // NOTE: for whatever reason the CSN is commented out in https://github.com/tessel/firmware/blob/aeb84f5c2026f7641f1ea063f28ee8da9f086c95/builtin/tessel.js#L412
+        spi.activeChipSelect(true);
         spi.transfer(writeBuf, function (e,d) {
+            spi.activeChipSelect(false);
             if (e) cb(e);
             else cb(null, d.slice(0,readLen));
         });
