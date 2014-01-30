@@ -99,7 +99,7 @@ exports.connect = function (tessel, port) {
         list.forEach(function (mnem) {
             var _r = _m.REGISTER_MAP[mnem];
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
-            if (_r.length === 1) _r.push(0,8);
+            if (_r.length === 1) _r.push(0), _r.push(8);
             
             var reg = _r[0],
                 howManyBits = _r[2] || 1,
