@@ -163,6 +163,9 @@ exports.connect = function (tessel, port) {
                     settlingNeeded = 0;
                 if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
+                    // WORKAROUND: https://github.com/tessel/beta/issues/87
+                    if (typeof vals[mnem] === 'boolean') vals[mnem] = (vals[mnem]) ? 1 : 0;
+                    
                     var m = maskForMnemonic(mnem);
                     if (mnem === 'PWR_UP') {
                         var rising = !(d[0] & m.mask) && vals[mnem];
