@@ -134,7 +134,7 @@ exports.connect = function (tessel, port) {
                     states[mnem] = (d[0] & m.mask) >> m.rightmostBit;
                 });
                 if (iq.solo) states[iq.solo] = d;
-                cb();
+                cb(null, '-');       // workaround for https://github.com/tessel/beta/issues/85
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
@@ -178,7 +178,7 @@ exports.connect = function (tessel, port) {
                     if (settlingNeeded) nrf.blockMicroseconds(settlingNeeded);  // see p.24
                     cb.apply(this, arguments);
                 });
-                else cb(null);  // don't bother writing if value hasn't changed (unless status, which clears bits)
+                else cb(null, '-');  // don't bother writing if value hasn't changed (unless status, which clears bits)
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
