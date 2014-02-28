@@ -5,6 +5,9 @@ var /*q = require('queue-async'),*/
     events = require('events'),
     _m = require("./magicnums");
 
+// WORKAROUND: https://github.com/tessel/beta/issues/199
+console.warn = console.error.bind(console);
+
 function forEachWithCB(fn, cb) {
     var process = q(1);
     this.forEach(function (d) { process.defer(fn, d); });
