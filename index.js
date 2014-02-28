@@ -47,8 +47,8 @@ exports.connect = function (tessel, port) {
         spi.activeChipSelect(true);     // WORKAROUND: https://github.com/tessel/beta/issues/89
         spi.transfer(writeBuf, function (e,d) {
             spi.activeChipSelect(false);
-            if (e) cb(e);
-            else cb(null, d.slice(0,readLen));
+            if (e) cb(e); // WORKAROUND: https://github.com/tessel/beta/issues/203
+            else cb(null, Buffer(d).slice(0,readLen));
         });
     };
     
