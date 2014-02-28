@@ -231,19 +231,10 @@ exports.connect = function (tessel, port) {
                 else cb(null, '1Mbps');
             });
         } else {
-            switch (val) {
-                case '1Mbps':
-                    val = {RF_DR_LOW:false,RF_DR_HIGH:false};
-                    break;
-                case '2Mbps':
-                    val = {RF_DR_LOW:false,RF_DR_HIGH:true};
-                    break;
-                case '250kbps':
-                    val = {RF_DR_LOW:true,RF_DR_HIGH:false};
-                    break;
-                default:
-                    throw Error("dataRate must be one of '1Mbps', '2Mbps', or '250kbps'.");
-            }
+            if (val === '1Mbps') val = {RF_DR_LOW:false,RF_DR_HIGH:false};
+            else if (val === '2Mbps') val = {RF_DR_LOW:false,RF_DR_HIGH:true};
+            else if (val == '250kbps') val = {RF_DR_LOW:true,RF_DR_HIGH:false};
+            else throw Error("dataRate must be one of '1Mbps', '2Mbps', or '250kbps'.");
             nrf.setStates(val, cb);
         }
         return this;
@@ -271,19 +262,10 @@ exports.connect = function (tessel, port) {
                 else cb(null, 1);
             });
         } else {
-            switch (val) {
-                case 0:
-                    val = {EN_CRC:false,CRCO:0};
-                    break;
-                case 1:
-                    val = {EN_CRC:true,CRCO:0};
-                    break;
-                case 2:
-                    val = {EN_CRC:true,CRCO:1};
-                    break;
-                default:
-                    throw Error("crcBytes must be 1, 2, or 0.");
-            }
+            if (val === 0) val = {EN_CRC:false,CRCO:0};
+            else if (val === 1) val = {EN_CRC:true,CRCO:0};
+            else if (val === 2) val = {EN_CRC:true,CRCO:1};
+            else throw Error("crcBytes must be 1, 2, or 0.");
             nrf.setStates(val, cb);
         }
         return this;
