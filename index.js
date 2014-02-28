@@ -63,7 +63,7 @@ exports.connect = function (tessel, port) {
             cb = data || _nop;
             data = 0;
         }
-        if (nrf._debug) console.log('execCommand', cmd, data);
+        if (nrf._debug) console.log('execCommand', cmd, Buffer(data));
         
         var cmdByte;
         if (typeof cmd === 'string') {
