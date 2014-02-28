@@ -100,7 +100,8 @@ exports.connect = function (tessel, port) {
         var registersNeeded = Object.create(null);
         list.forEach(function (mnem) {
             var _r = _m.REGISTER_MAP[mnem];
-            if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
+                 // WORKAROUND: https://github.com/tessel/beta/issues/200
+            if (!Boolean(_r)) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
             if (_r.length === 1) _r.push(0), _r.push(8);
             
             var reg = _r[0],
