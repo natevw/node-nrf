@@ -466,7 +466,9 @@ exports.connect = function (tessel, port) {
         d.pipe._tx(d.data, function () {
             try {
                 d.cb.apply(this, arguments);
-            } finally {
+            //} finally {
+            // WORKAROUND: https://github.com/tessel/beta/issues/198 (not quite equivalent, this drops exception!)
+            } catch (e) {} if (1) {
                 delete txQ.active;
                 nrf._nudgeTX();
             }
