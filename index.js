@@ -90,7 +90,7 @@ exports.connect = function (tessel, port) {
         }
         
         spi._nrf_transfer(writeBuf, readLen && readLen+1, function (e,d) {
-            if (nrf._debug && readLen) console.log(' - exec read:', d);
+            if (nrf._debug && readLen) console.log(' - got:', d);
             if (e) return cb(e);
             else return cb(null, d && Array.prototype.reverse.call(d.slice(1)));
         });
