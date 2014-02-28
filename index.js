@@ -27,6 +27,14 @@ function _nop() {}          // used when a cb is not provided
 // TODO: remove when https://github.com/tessel/beta/issues/74 fully shipped
 Buffer.isBuffer = function (b) { return Boolean(b && 'readUInt8' in b); }
 
+// TODO: remove when https://github.com/tessel/beta/issues/202 resolved
+Buffer.prototype.toString = function (fmt) {
+    if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
+        return (0x100+n).toString(16).slice(1);
+    }).join('');
+    else throw Error("Not implemented: buffer conversion to "+fmt);
+}
+
 
 exports.connect = function (tessel, port) {
     var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
@@ -679,5 +687,5 @@ exports.connect = function (tessel, port) {
 
 var tessel = require('tessel'),
     nrf = exports.connect(tessel, tessel.port('a'));
-nrf._debug = true;
+//nrf._debug = true;
 nrf.printDetails();
