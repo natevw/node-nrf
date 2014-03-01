@@ -663,7 +663,7 @@ exports.connect = function (tessel, port) {
                                 logFinalDetails();
                             } else nrf.setStates({RF_DR_LOW:true}, function () {
                                 nrf.getStates(['RF_DR_LOW'], function (e,d2) {
-                                    // (non-plus chips hold this bit zero even after settting)
+                                    // (non-plus chips hold this bit zero even after setting)
                                     if (d2.RF_DR_LOW) isPlus = true;
                                     // …then set back to original (false) value again
                                     nrf.setStates({RF_DR_LOW:false}, function () {
