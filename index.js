@@ -12,6 +12,29 @@ try {
 // WORKAROUND: https://github.com/tessel/beta/issues/199
 console.warn = console.error.bind(console);
 
+// WORKAROUND: https://github.com/tessel/beta/issues/62
+if (!stream.Duplex) {
+    var events = require('events');
+    
+    stream.Duplex = function () {
+        events.EventEmitter.call(this);
+        this.on('newListener', function (evtName) {
+            if (evtName === 'data') this._read();
+        }.bind(this));
+    };
+    util.inherits(stream.Duplex, events.EventEmitter);
+    
+    stream.Duplex.prototype.write = function (data) {
+        this._write(data);
+    };
+    
+    stream.Duplex.prototype.push = function (data) {
+        this.emit('data', data);
+    };
+}
+
+
+
 function forEachWithCB(fn, cb) {
     var process = q(1);
     this.forEach(function (d) { process.defer(fn, d); });
@@ -502,7 +525,7 @@ exports.connect = function (tessel, port) {
     };
     
     function PxX(pipe, addr, opts) {           // base for PTX/PRX
-        //stream.Duplex.call(this,{highWaterMark:64});
+        stream.Duplex.call(this,{highWaterMark:64});
         this.opts = opts;
         this._pipe = pipe;
         this._addr = addr;
@@ -544,7 +567,7 @@ exports.connect = function (tessel, port) {
             nrf.removeListener('interrupt', irqHandler);
         });
     }
-    //util.inherits(PxX, stream.Duplex);
+    util.inherits(PxX, stream.Duplex);
     PxX.prototype._write = function (buff, _enc, cb) {
         txQ.push({pipe:this,data:buff,cb:cb});
         nrf._nudgeTX();
