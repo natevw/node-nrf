@@ -494,7 +494,7 @@ exports.connect = function (tessel, port) {
     }
     nrf.openPipe = function (rx_tx, addr, opts) {
         if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
-        if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');
+        if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');      // TODO: workaround https://github.com/tessel/beta/issues/209
         opts || (opts = {});
         
         var pipe;
