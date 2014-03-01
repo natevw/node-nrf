@@ -23,9 +23,6 @@ function _extend(obj) {
 
 function _nop() {}          // used when a cb is not provided
 
-// TODO: remove when https://github.com/tessel/beta/issues/74 fully shipped
-Buffer.isBuffer = function (b) { return Boolean(b && 'readUInt8' in b); }
-
 // TODO: remove when https://github.com/tessel/beta/issues/202 resolved
 Buffer.prototype.toString = function (fmt) {
     if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
