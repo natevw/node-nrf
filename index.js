@@ -1,5 +1,4 @@
-var /*q = require('queue-async'),*/
-    q = require("./queue"),
+var q = require('queue-async'),
     stream = require('stream'),
     util = require('util'),
     events = require('events'),
