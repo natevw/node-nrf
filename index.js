@@ -225,9 +225,11 @@ exports.connect = function (tessel, port) {
                     val &= ~m.mask;        // clear current value
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
-                if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function () {
+                if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function (e,d) {
                     if (settlingNeeded) nrf.blockMicroseconds(settlingNeeded);  // see p.24
-                    cb.apply(this, arguments);
+                    // WORKAROUND: https://github.com/tessel/beta/issues/207
+                    //cb.apply(this, arguments);
+                    cb.call(this, e,d);
                 });
                 else cb(null, '-');  // don't bother writing if value hasn't changed (unless status, which clears bits)
             });
@@ -455,7 +457,7 @@ exports.connect = function (tessel, port) {
         nrf.setCE('low','stby2a');
         var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
-        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
+        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e,d) {
             if (e) return nrf.emit('error', e);
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
@@ -514,6 +516,7 @@ exports.connect = function (tessel, port) {
         txQ.active = true;
         d.pipe._tx(d.data, function () {
             try {
+                // NOTE: skipping https://github.com/tessel/beta/issues/207 workaround since should only have 1 argument…
                 d.cb.apply(this, arguments);
             //} finally {
             // WORKAROUND: https://github.com/tessel/beta/issues/198 (not quite equivalent, this drops exception!)
