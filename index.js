@@ -4,6 +4,11 @@ var q = require('queue-async'),
     events = require('events'),
     _m = require("./magicnums");
 
+var tessel;
+try {
+    tessel = require('tessel');
+} catch (e) {}
+
 // WORKAROUND: https://github.com/tessel/beta/issues/199
 console.warn = console.error.bind(console);
 
@@ -58,9 +63,16 @@ exports.connect = function (tessel, port) {
     
     
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
-    nrf._T._tesselSpinloopScale = 1;
     
-    nrf.blockMicroseconds = tessel.sleep;
+    nrf.blockMicroseconds = (tessel) ? tessel.sleep : function (us) {
+        // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
+        var start = process.hrtime();
+        while (1) {
+            var diff = process.hrtime(start);
+            if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
+        }
+        if (nrf._debug) console.log("blocked for "+us+"µs.");
+    };
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
         if (typeof data === 'function' || typeof data === 'undefined') {
