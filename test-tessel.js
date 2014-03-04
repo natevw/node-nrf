@@ -2,12 +2,18 @@ var tessel = require('tessel'),
     NRF24 = require("./index"),
     nrf = NRF24.connect(tessel.port('a')),
     pipes = ['F0F0F0F0E1', 'F0F0F0F0D2'],
-    role = 'ping';
+    role = 'listen';
 //nrf._debug = true;
 //nrf.printDetails();
 
 nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:4000}).begin(function () {
-    if (role === 'ping') {
+    if (role === 'listen') {
+        // HACK: listen for "ambient" broadcast i.e. https://github.com/natevw/greenhouse/blob/master/config.h#L5
+        var rx = nrf.openPipe('rx', pipes[0], {autoAck:false});
+        rx.on('data', function (d) {
+            console.log("******** Got data ********", d);
+        });
+    } else if (role === 'ping') {
         console.log("PING out");
         var tx = nrf.openPipe('tx', pipes[0]),
             rx = nrf.openPipe('rx', pipes[1]);

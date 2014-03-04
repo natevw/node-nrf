@@ -476,7 +476,7 @@ exports.connect = function (port) {
             var prevIdle = true;
             irqListener = setInterval(function () {
                 var idle = irq.read();
-                if (nrf._debug) console.log("polled irq, idle:", idle);
+                //if (nrf._debug) console.log("polled irq, idle:", idle);
                 if (prevIdle && !idle) nrf._checkStatus(true);
                 prevIdle = idle;
             }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
