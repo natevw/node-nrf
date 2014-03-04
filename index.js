@@ -449,7 +449,7 @@ exports.connect = function (port) {
         .await(cb);
     };
     
-    nrf._checkStatus = function (irq) {
+    nrf._checkStatus = function (from_irq) {
         nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR'], function (e,d) {
             checking = false;
             if (e) nrf.emit('error', e);
@@ -458,7 +458,7 @@ exports.connect = function (port) {
                 // TODO: this may actually just happen until we reset RX_DR (maybe FLUSH_RX or similar unsyncs?)
                 nrf._checkStatus(false);
             }, 0);
-            else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) nrf.emit('interrupt', d);
+            else if (from_irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) nrf.emit('interrupt', d);
         });
     };
     
