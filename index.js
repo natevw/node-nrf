@@ -512,8 +512,13 @@ exports.connect = function (tessel, port) {
         }
     }
     nrf.openPipe = function (rx_tx, addr, opts) {
+        if (tessel && typeof addr === 'number') throw Error(
+            "Please don't use hex literal addresses on Tessel, "
+            +"see https://github.com/tessel/beta/issues/213"
+        );
         if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
-        if (typeof addr === 'number') addr = Buffer_workaround(addr.toString(16), 'hex');
+        if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');
+        else if (typeof addr == 'string') addr = Buffer_workaround(addr, 'hex');
         opts || (opts = {});
         
         var pipe;

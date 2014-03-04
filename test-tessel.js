@@ -1,7 +1,7 @@
 var tessel = require('tessel'),
     NRF24 = require("./index"),
     nrf = NRF24.connect(tessel, tessel.port('a')),
-    pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2],
+    pipes = ['F0F0F0F0E1', 'F0F0F0F0D2'],
     role = 'ping';
 //nrf._debug = true;
 //nrf.printDetails();
