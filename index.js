@@ -80,7 +80,7 @@ Buffer.prototype.toString = function (fmt) {
 
 
 exports.connect = function (port) {
-    var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
+    var _spi = "Tessel", _ce = "builtin", _irq = "-";       // only for printDetails!
     var nrf = new events.EventEmitter(),
         spi = new port.SPI({chipSelect:port.gpio(1)}),
         ce = port.gpio(2),
@@ -256,7 +256,18 @@ exports.connect = function (port) {
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
     };
     
-    nrf.setCE = function (state, block) {
+    nrf.setCE = (tessel) ? function (state, block) {
+        if (typeof state === 'string') {
+            ce.mode('input');
+            if (state === 'high') state = true;
+            else if (state === 'low') state = false;
+            else throw Error("Unsupported setCE mode: "+state);
+        }
+        if (state) ce.high();
+        else ce.low();
+        if (nrf._debug) console.log("Set CE "+state+".");
+        if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
+    } : function (state, block) {
         if (typeof state === 'string') ce.mode(state);
         else ce.value(state);
         if (nrf._debug) console.log("Set CE "+state+".");
