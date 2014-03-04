@@ -126,7 +126,6 @@ exports.connect = function (port) {
             cb = data || _nop;
             data = 0;
         }
-        if (nrf._debug) console.log('execCommand', cmd, Buffer(data));
         
         var cmdByte;
         if (typeof cmd === 'string') {
@@ -151,6 +150,8 @@ exports.connect = function (port) {
             writeBuf = Buffer([cmdByte]);
             readLen = data;
         }
+        
+        if (nrf._debug) console.log('execCommand', cmd, readLen, writeBuf);
         
         spi._nrf_transfer(writeBuf, readLen && readLen+1, function (e,d) {
             if (nrf._debug && readLen) console.log(' - got:', d);
