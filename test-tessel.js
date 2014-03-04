@@ -11,19 +11,18 @@ nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetr
         console.log("PING out");
         var tx = nrf.openPipe('tx', pipes[0]),
             rx = nrf.openPipe('rx', pipes[1]);
-        var count = 0;
-        rx.on('data', function (d) {
-            console.log("Got response back:", d.readUInt32BE(0));
-        });
         tx.on('ready', function () {    // NOTE: hoping to get rid of need to wait for "ready"
-console.log("TX READY!");
             // (new CountStream).pipe(tx);
             var n = 0;
             setInterval(function () {
+                console.log("Sending", n);
                 var b = new Buffer(4);
                 b.writeUInt32BE(n++, 0);
                 tx.write(b);
             }, 1e3);
+        });
+        rx.on('data', function (d) {
+            console.log("Got response back:", d.readUInt32BE(0));
         });
     } else {
         console.log("PONG back");
