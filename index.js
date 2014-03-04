@@ -51,6 +51,25 @@ function _extend(obj) {
 
 function _nop() {}          // used when a cb is not provided
 
+
+// TODO: remove when https://github.com/tessel/beta/issues/209 resolved
+function Buffer_workaround(str, fmt) {
+    if (!fmt) return Buffer(str);
+    else if (fmt === 'hex') {     // avoid https://github.com/tessel/beta/issues/211
+        if (str.length % 2) throw /*Type*/Error("Invalid hex string");
+        var arr = [];
+        for (var i = 0; i < str.length; i += 2) {
+            // also workaround https://github.com/tessel/beta/issues/206
+            var n = Number('0x'+str.slice(i, i+2));
+            arr.push(n);
+        }
+        return Buffer(arr);
+    } else {
+        throw Error("Not implemented: buffer conversion from "+fmt);
+    }
+}
+
+
 // TODO: remove when https://github.com/tessel/beta/issues/202 resolved
 Buffer.prototype.toString = function (fmt) {
     if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
@@ -494,7 +513,7 @@ exports.connect = function (tessel, port) {
     }
     nrf.openPipe = function (rx_tx, addr, opts) {
         if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
-        if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');      // TODO: workaround https://github.com/tessel/beta/issues/209
+        if (typeof addr === 'number') addr = Buffer_workaround(addr.toString(16), 'hex');
         opts || (opts = {});
         
         var pipe;
