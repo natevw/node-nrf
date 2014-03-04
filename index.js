@@ -73,8 +73,10 @@ function Buffer_workaround(str, fmt) {
 
 
 // TODO: remove when https://github.com/tessel/beta/issues/202 resolved
+var _origBuffString = Buffer.prototype.toString;
 Buffer.prototype.toString = function (fmt) {
-    if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
+    if (!fmt) return _origBuffString.call(this);
+    else if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
         return (0x100+n).toString(16).slice(1);
     }).join('');
     else throw Error("Not implemented: buffer conversion to "+fmt);
