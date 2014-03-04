@@ -79,7 +79,7 @@ Buffer.prototype.toString = function (fmt) {
 }
 
 
-exports.connect = function (tessel, port) {
+exports.connect = function (port) {
     var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
     var nrf = new events.EventEmitter(),
         spi = new port.SPI({chipSelect:port.gpio(1)}),
