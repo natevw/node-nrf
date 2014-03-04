@@ -26,10 +26,12 @@ if (!stream.Duplex) {
     
     stream.Duplex.prototype.write = function (data) {
         this._write(data);
+        return true;
     };
     
     stream.Duplex.prototype.push = function (data) {
         this.emit('data', data);
+        return true;
     };
 }
 
