@@ -106,7 +106,10 @@ exports.connect = function (port) {
     
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
     
-    nrf.blockMicroseconds = (tessel) ? tessel.sleep : function (us) {
+    nrf.blockMicroseconds = (tessel) ? function (us) {
+        tessel.sleep(us);
+        if (nrf._debug) console.log("slept for "+us+"µs.");
+    } : function (us) {
         // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
         var start = process.hrtime();
         while (1) {
