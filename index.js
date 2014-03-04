@@ -86,7 +86,7 @@ exports.connect = function (port) {
     var nrf = new events.EventEmitter(),
         spi = new port.SPI({chipSelect:port.gpio(1)}),
         ce = port.gpio(2),
-        irq = false;        // port.gpio(3) but I don't think triggering is available
+        irq = port.gpio(3);
     
     // Tessel's transfer always returns as much data as sent
     spi._nrf_transfer = function (writeBuf, readLen, cb) {
@@ -466,9 +466,20 @@ exports.connect = function (port) {
         irqOn = false;
     nrf._irqOn = function () {
         if (irqOn) return;
-        else if (irq) {
+        else if (irq && !tessel) {
             irq.mode('in');
             irq.addListener('fall', irqListener);
+        } else if (irq) {
+            // hybrid mode: polling, but of IRQ pin instead of nrf status
+            // TODO: use hardware interrupt https://github.com/tessel/beta/issues/216
+            irq.mode('input');
+            var prevIdle = true;
+            irqListener = setInterval(function () {
+                var idle = irq.read();
+                if (nrf._debug) console.log("polled irq, idle:", idle);
+                if (prevIdle && !idle) nrf._checkStatus(true);
+                prevIdle = idle;
+            }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
             irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners?
@@ -479,7 +490,7 @@ exports.connect = function (port) {
     };
     nrf._irqOff = function () {
         if (!irqOn) return;
-        else if (irq) irq.removeListener('fall', irqListener);
+        else if (irq && !tessel) irq.removeListener('fall', irqListener);
         else clearInterval(irqListener);
         irqOn = false;
     };
