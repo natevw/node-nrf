@@ -493,7 +493,7 @@ exports.connect = function (spi,ce,irq) {
             if (opts.autoAck) nrf._prevSender = null;         // make sure TX doesn't skip setup
         }
         if (opts._enableRX) {
-            s['RX_ADDR_P'+n] = addr;
+            s['RX_ADDR_P'+n] = addr;            // TODO: AFAICT only opts._primRX should do this
             s['ERX_P'+n] = true;
         } else {
             s['ERX_P'+n] = false;
@@ -543,6 +543,7 @@ exports.connect = function (spi,ce,irq) {
                 s['RX_ADDR_P0'] = this._addr;
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
+                // TODO: shouldn't this be overrideable regardless of _sendOpts.ack??
                 if ('txPower' in this.opts) s['RF_PWR'] = _m.TX_POWER.indexOf(this.opts.txPower);
             }
         }
