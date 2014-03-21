@@ -99,7 +99,6 @@ exports.connect = function (port) {
             writeBuf = tmpBuff;
         }
         
-        spi.activeChipSelect(true);     // WORKAROUND: https://github.com/tessel/beta/issues/89
         spi.transfer(writeBuf, function (e,d) {
             spi.activeChipSelect(false);
             if (e) cb(e); // WORKAROUND: https://github.com/tessel/beta/issues/203
