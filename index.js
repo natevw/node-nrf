@@ -3,7 +3,7 @@ var q = require('queue-async'),
     util = require('util'),
     events = require('events'),
     SPI = require('pi-spi'),
-    GPIO = require("./gpio"),
+    GPIO = require('pi-pins'),
     _m = require("./magicnums");
 
 function forEachWithCB(fn, cb) {
