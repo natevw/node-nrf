@@ -1,9 +1,9 @@
 // see https://gist.github.com/natevw/5789019 for pins
 
-//var pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2];
+var pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2];
 var radios = [
     {spiDev:"/dev/spidev0.0", cePin:24, irqPin:25},
-    {spiDev:"/dev/spidev0.0", cePin:23}
+    {spiDev:"/dev/spidev0.1", cePin:23}
 ];
 
 
@@ -20,17 +20,28 @@ radios.forEach(function (radio) {
 function setupRadio(radio, cb) {
     radio.channel(0x4c).dataRate('1Mbps').crcBytes(2);
     radio.transmitPower('PA_MAX').autoRetransmit({count:15, delay:4000});
-    radio.begin(cb);
+    radio.begin(function (e) { cb(e, radio); });
 }
 q.awaitAll(function (e,d) {
     if (e) throw e;
+    
+    var tx = d[0].openPipe('tx', pipes[0]),
+        rx = d[1].openPipe('rx', pipes[0]);
+    
+    d[0]._debug = true;
+    
+    tx.on('ready', function () {
+        tx.write("NARF!");
+    });
+    /*
+    rx.on('data', function (d) {
+        console.log("Got data:", d);
+    });
+    */
     
     // RX - no ack
     // TX - no ack
     
     // RX - ack payloads
     // TX - ack payloads
-    
-    
-    console.log("It begins.", d);
 });
