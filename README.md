@@ -91,6 +91,19 @@ Effective use of these methods requires proficiency with both the library intern
 > **TBD**: `radio.execCommand(cmd,data,cb)` / `radio.getStates(list,cb)` / `radio.setStates(vals, cb)` / `radio.setCE(state, block)` / `radio.pulseCE(block)` / `radio.reset(states, cb)` / `radio.blockMicroseconds(us)` / `radio.readPayload(opts, cb)` / `radio.sendPayload(data, opts, cb)`
 
 
+## Troubleshooting
+
+### node-nrf (or pi-spi) not working after using C++ RF24 library
+
+The C++ [RF24 library for RasPi](https://github.com/stanleyseow/RF24/) toggles the SPI chip select pin manually, which breaks the Linux SPI driver. Reload it to fix, before using `node-nrf`:
+
+    sudo modprobe -r spi_bcm2708
+    sudo modprobe spi_bcm2708
+
+See [this comment](https://github.com/natevw/node-nrf/issues/1#issuecomment-32395546) for a bit more discussion.
+
+### TBD: gather more advice (or link to a wiki page?)
+
 ## License
 
 > **TBD**: [BSD-2-Clause template]
