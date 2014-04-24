@@ -28,16 +28,17 @@ q.awaitAll(function (e,d) {
     var tx = d[0].openPipe('tx', pipes[0]),
         rx = d[1].openPipe('rx', pipes[0]);
     
-    d[0]._debug = true;
+    //d[0]._debug = true;
     
     tx.on('ready', function () {
         tx.write("NARF!");
+        tx.write("Hello?");
+        tx.write("blah blah blah");
+        tx.write("the number 4");
     });
-    /*
     rx.on('data', function (d) {
-        console.log("Got data:", d);
+        console.log("Got data:", d.toString());
     });
-    */
     
     // RX - no ack
     // TX - no ack
