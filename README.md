@@ -86,7 +86,7 @@ Effective use of these methods requires proficiency with both the library intern
 
 * `radio.powerUp(boolState, cb)` — Set (or read, when no value is provided) the power status of the radio. Callback is optional. When the power is off the transceiver hardware uses little power, but takes a little while longer to enter any useful mode. This is set `true` by `radio.begin()` and `false` by `radio.end()` so it is typically not necessary when using the main API. Default is `false`.
 
-* `radio.addressWidth(width, cb)` — Set (or read, when no value is provided) the receiver address width used. Callback is optional. When the power is off the transceiver hardware uses little power, but takes a little while longer to enter any useful mode. This is determined automatically whenever `radio.openPipe()` so it is typically not necessary when using the main API. Choose `3`, `4` or `5` bytes (this library also supports setting `2`, at your own risk). Default is `5`.
+* `radio.addressWidth(width, cb)` — Set (or read, when no value is provided) the receiver address width used. Callback is optional. The address width is determined automatically whenever `radio.openPipe()` is used so it is not normally necessary to call this when using the main API. Choose `3`, `4` or `5` bytes (this library also supports setting `2`, at your own risk). Default is `5`.
 
 > **TBD**: `radio.execCommand(cmd,data,cb)` / `radio.getStates(list,cb)` / `radio.setStates(vals, cb)` / `radio.setCE(state, block)` / `radio.pulseCE(block)` / `radio.reset(states, cb)` / `radio.blockMicroseconds(us)` / `radio.readPayload(opts, cb)` / `radio.sendPayload(data, opts, cb)`
 
