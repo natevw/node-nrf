@@ -371,6 +371,7 @@ exports.connect = function (spi,ce,irq) {
             else if (d.RX_DR && d.RX_P_NO === 0x07) setTimeout(function () {
                 // HACK: chip seems to assert RX_DR a while before setting RX_P_NO, so poll if necessary
                 // TODO: this may actually just happen until we reset RX_DR (maybe FLUSH_RX or similar unsyncs?)
+                if (nrf._debug) console.warn("- weird status, checking again -");
                 nrf._checkStatus(false);
             }, 0);
             else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) nrf.emit('interrupt', d);
