@@ -25,12 +25,11 @@ function setupRadio(radio, cb) {
 q.awaitAll(function (e,d) {
     if (e) throw e;
     
-    var tx = d[1].openPipe('tx', pipes[0]),
-        rx = d[0].openPipe('rx', pipes[0]);
+    d[0]._debug = true;
     
-    setTimeout(function () {
-       // d[0]._debug = true;
-    }, 3e3);
+    var tx = d[1].openPipe('tx', pipes[0]),
+        rx = d[0].openPipe('rx', pipes[0]),
+        rx2 = d[0].openPipe('rx', pipes[1]);
     
     tx.on('ready', function () {
         tx.write("NARF!");
@@ -38,7 +37,7 @@ q.awaitAll(function (e,d) {
         tx.write("blah blah blah");
         tx.write("the number 4");
         setInterval(tx.write.bind(tx, "beep"), 2e3);
-        setInterval(tx.write.bind(tx, "boop"), 2e3);
+        //setInterval(tx.write.bind(tx, "boop"), 2e3);
     });
     rx.on('data', function (d) {
         console.log("Got data:", d.toString());
