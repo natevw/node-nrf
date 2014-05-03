@@ -71,6 +71,7 @@ function Buffer_workaround(str, fmt) {
 
 // TODO: remove when https://github.com/tessel/beta/issues/202 resolved
 var _origBuffString = Buffer.prototype.toString;
+
 Buffer.prototype.toString = function (fmt) {
     if (!fmt) return _origBuffString.call(this);
     else if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
@@ -79,14 +80,17 @@ Buffer.prototype.toString = function (fmt) {
     else throw Error("Not implemented: buffer conversion to "+fmt);
 }
 
+exports.use = function(hardware, callback) {
+    return new nrf(hardware);
+}
 
-exports.use = function (port) {
+function nrf(hardware, callback) {
     var _spi = "Tessel", _ce = "builtin", _irq = "-";       // only for printDetails!
     var nrf = new events.EventEmitter(),
-        spi = new port.SPI({chipSelect:port.gpio(1)}),
-        ce = port.gpio(2),
-        irq = port.gpio(3);
-    
+        spi = new hardware.SPI({chipSelect:hardware.gpio(1)}),
+        ce = hardware.gpio(2),
+        irq = hardware.gpio(3);
+    nrf._debug = true;  
     // Tessel's transfer always returns as much data as sent
     spi._nrf_transfer = function (writeBuf, readLen, cb) {
         if (readLen > writeBuf.length) {
@@ -207,6 +211,7 @@ exports.use = function (port) {
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
             if (nrf._debug) console.log('gotStates', states, e);
+            console.log('got states', states);
             cb(e,states);
         });
     };
@@ -476,14 +481,7 @@ exports.use = function (port) {
         } else if (irq) {
             // hybrid mode: polling, but of IRQ pin instead of nrf status
             // TODO: use hardware interrupt https://github.com/tessel/beta/issues/216
-            irq.input();
-            var prevIdle = true;
-            irqListener = setInterval(function () {
-                var idle = irq.read();
-                //if (nrf._debug) console.log("polled irq, idle:", idle);
-                if (prevIdle && !idle) nrf._checkStatus(true);
-                prevIdle = idle;
-            }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
+            irq.watch('fall', irqListener);
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
             irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners?
@@ -495,7 +493,7 @@ exports.use = function (port) {
     nrf._irqOff = function () {
         if (!irqOn) return;
         else if (irq && !tessel) irq.removeListener('fall', irqListener);
-        else clearInterval(irqListener);
+        else irq.unwatch('fall');
         irqOn = false;
     };
     
@@ -510,7 +508,6 @@ exports.use = function (port) {
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
         nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e,d) {
             if (e) return nrf.emit('error', e);
-            console.log('reset!');
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
             nrf.emit('ready');
@@ -545,10 +542,6 @@ exports.use = function (port) {
         }
     }
     nrf.openPipe = function (rx_tx, addr, opts) {
-        if (tessel && typeof addr === 'number') throw Error(
-            "Please don't use hex literal addresses on Tessel, "
-            +"see https://github.com/tessel/beta/issues/213"
-        );
         if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
         if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');
         else if (typeof addr == 'string') addr = Buffer_workaround(addr, 'hex');
