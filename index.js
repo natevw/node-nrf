@@ -9,9 +9,6 @@ try {
     tessel = require('tessel');
 } catch (e) {}
 
-// WORKAROUND: https://github.com/tessel/beta/issues/199
-console.warn = console.error.bind(console);
-
 // WORKAROUND: https://github.com/tessel/beta/issues/62
 if (!stream.Duplex) {
     var events = require('events');
@@ -83,7 +80,7 @@ Buffer.prototype.toString = function (fmt) {
 }
 
 
-exports.connect = function (port) {
+exports.use = function (port) {
     var _spi = "Tessel", _ce = "builtin", _irq = "-";       // only for printDetails!
     var nrf = new events.EventEmitter(),
         spi = new port.SPI({chipSelect:port.gpio(1)}),
@@ -100,9 +97,9 @@ exports.connect = function (port) {
         }
         
         spi.transfer(writeBuf, function (e,d) {
-            spi.activeChipSelect(false);
+            // spi.activeChipSelect(false);
             if (e) cb(e); // WORKAROUND: https://github.com/tessel/beta/issues/203
-            else cb(null, Buffer(d).slice(0,readLen));
+            else cb(null, d);
         });
     };
     
@@ -265,7 +262,7 @@ exports.connect = function (port) {
     
     nrf.setCE = (tessel) ? function (state, block) {
         if (typeof state === 'string') {
-            ce.mode('input');
+            ce.input();
             if (state === 'high') state = true;
             else if (state === 'low') state = false;
             else throw Error("Unsupported setCE mode: "+state);
@@ -479,7 +476,7 @@ exports.connect = function (port) {
         } else if (irq) {
             // hybrid mode: polling, but of IRQ pin instead of nrf status
             // TODO: use hardware interrupt https://github.com/tessel/beta/issues/216
-            irq.mode('input');
+            irq.input();
             var prevIdle = true;
             irqListener = setInterval(function () {
                 var idle = irq.read();
@@ -513,6 +510,7 @@ exports.connect = function (port) {
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
         nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e,d) {
             if (e) return nrf.emit('error', e);
+            console.log('reset!');
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
             nrf.emit('ready');
