@@ -9,31 +9,6 @@ try {
     tessel = require('tessel');
 } catch (e) {}
 
-// WORKAROUND: https://github.com/tessel/beta/issues/62
-if (!stream.Duplex) {
-    var events = require('events');
-    
-    stream.Duplex = function () {
-        events.EventEmitter.call(this);
-        this.on('newListener', function (evtName) {
-            if (evtName === 'data') this._read();
-        }.bind(this));
-    };
-    util.inherits(stream.Duplex, events.EventEmitter);
-    
-    stream.Duplex.prototype.write = function (data) {
-        this._write(data);
-        return true;
-    };
-    
-    stream.Duplex.prototype.push = function (data) {
-        this.emit('data', data);
-        return true;
-    };
-}
-
-
-
 function forEachWithCB(fn, cb) {
     var process = q(1);
     this.forEach(function (d) { process.defer(fn, d); });
@@ -50,36 +25,6 @@ function _extend(obj) {
 
 function _nop() {}          // used when a cb is not provided
 
-
-// TODO: remove when https://github.com/tessel/beta/issues/209 resolved
-function Buffer_workaround(str, fmt) {
-    if (!fmt) return Buffer(str);
-    else if (fmt === 'hex') {     // avoid https://github.com/tessel/beta/issues/211
-        if (str.length % 2) throw /*Type*/Error("Invalid hex string");
-        var arr = [];
-        for (var i = 0; i < str.length; i += 2) {
-            // also workaround https://github.com/tessel/beta/issues/206
-            var n = Number('0x'+str.slice(i, i+2));
-            arr.push(n);
-        }
-        return Buffer(arr);
-    } else {
-        throw Error("Not implemented: buffer conversion from "+fmt);
-    }
-}
-
-
-// TODO: remove when https://github.com/tessel/beta/issues/202 resolved
-var _origBuffString = Buffer.prototype.toString;
-
-Buffer.prototype.toString = function (fmt) {
-    if (!fmt) return _origBuffString.call(this);
-    else if (fmt === 'hex') return Array.prototype.slice.call(this, 0).map(function (n) {
-        return (0x100+n).toString(16).slice(1);
-    }).join('');
-    else throw Error("Not implemented: buffer conversion to "+fmt);
-}
-
 exports.use = function(hardware, callback) {
     return new nrf(hardware);
 }
@@ -87,10 +32,10 @@ exports.use = function(hardware, callback) {
 function nrf(hardware, callback) {
     var _spi = "Tessel", _ce = "builtin", _irq = "-";       // only for printDetails!
     var nrf = new events.EventEmitter(),
-        spi = new hardware.SPI({chipSelect:hardware.gpio(1)}),
-        ce = hardware.gpio(2),
-        irq = hardware.gpio(3);
-    nrf._debug = true;  
+        spi = new hardware.SPI({chipSelect:hardware.digital[1], chipSelectActive: 0}),
+        ce = hardware.digital[2],
+        irq = hardware.digital[3];
+    // nrf._debug = true;  
     // Tessel's transfer always returns as much data as sent
     spi._nrf_transfer = function (writeBuf, readLen, cb) {
         if (readLen > writeBuf.length) {
@@ -164,18 +109,23 @@ function nrf(hardware, callback) {
     
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
+        var count = 0;
         list.forEach(function (mnem) {
             var _r = _m.REGISTER_MAP[mnem];
-                 // WORKAROUND: https://github.com/tessel/beta/issues/200
-            if (!Boolean(_r)) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
+            // console.log("mnem", mnem, _m.REGISTER_MAP[mnem]);
+            if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
             if (_r.length === 1) _r.push(0), _r.push(8);
             
-            var reg = _r[0]+'', // WORKAROUND: https://github.com/tessel/beta/issues/201
+            var reg = _r[0],
                 howManyBits = _r[2] || 1,
                 iq = registersNeeded[reg] || (registersNeeded[reg] = {arr:[]});
             iq.len = (howManyBits / 8 >> 0) || 1;
+
             if (howManyBits < 8) iq.arr.push(mnem);
             else iq.solo = mnem;
+
+            // console.log("reg", reg, "howManyBits", howManyBits, "iq", iq, "registersNeeded[reg]", registersNeeded[reg], "iq.len", iq.len, registersNeeded);
+            // console.log("reg", reg, "registersNeeded[reg]", registersNeeded[reg], registersNeeded);
         });
         return registersNeeded;
     }
@@ -191,13 +141,12 @@ function nrf(hardware, callback) {
     nrf.getStates = function (list, cb) {
         var registersNeeded = registersForMnemonics(list),
             states = Object.create(null);
+            // console.log("registers needed", list, registersNeeded);
         function processInquiryForRegister(reg, cb) {
             // TODO: execCommand always reads register 0x07 but we're not optimizing for that
             // TODO: we could probably also eliminate re-fetch of 0x07 during IRQ processing
             var iq = registersNeeded[reg];
-            //reg = +reg;
-            // WORKAROUND: https://github.com/tessel/beta/issues/204
-            reg = parseInt(reg, 10);
+            reg = +reg;
             
             nrf.execCommand(['R_REGISTER',reg], iq.len, function (e,d) {
                 if (e) return cb(e);
@@ -206,12 +155,11 @@ function nrf(hardware, callback) {
                     states[mnem] = (d[0] & m.mask) >> m.rightmostBit;
                 });
                 if (iq.solo) states[iq.solo] = d;
-                cb(null, '-');       // workaround for https://github.com/tessel/beta/issues/85
+                cb();
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
             if (nrf._debug) console.log('gotStates', states, e);
-            console.log('got states', states);
             cb(e,states);
         });
     };
@@ -223,9 +171,7 @@ function nrf(hardware, callback) {
         var registersNeeded = registersForMnemonics(Object.keys(vals));
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
-            //reg = +reg;     // was string key, now convert back to number
-            // WORKAROUND: https://github.com/tessel/beta/issues/204
-            reg = parseInt(reg, 10);
+            reg = +reg;     // was string key, now convert back to number
             
             // if a register is "full" we can simply overwrite, otherwise we must read+merge
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
@@ -239,9 +185,8 @@ function nrf(hardware, callback) {
                     settlingNeeded = 0;
                 if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
-                    // WORKAROUND: https://github.com/tessel/beta/issues/87
-                    if (typeof vals[mnem] === 'boolean') vals[mnem] = (vals[mnem]) ? 1 : 0;
-                    
+                    vals[mnem] = (vals[mnem] << 0); // convert boolean to number
+
                     var m = maskForMnemonic(mnem);
                     if (mnem === 'PWR_UP') {
                         var rising = !(d[0] & m.mask) && vals[mnem];
@@ -255,9 +200,7 @@ function nrf(hardware, callback) {
                 });
                 if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function (e,d) {
                     if (settlingNeeded) nrf.blockMicroseconds(settlingNeeded);  // see p.24
-                    // WORKAROUND: https://github.com/tessel/beta/issues/207
-                    //cb.apply(this, arguments);
-                    cb.call(this, e,d);
+                    cb.apply(this, arguments);
                 });
                 else cb(null, '-');  // don't bother writing if value hasn't changed (unless status, which clears bits)
             });
@@ -384,6 +327,7 @@ function nrf(hardware, callback) {
     
     // caller must know pipe and provide its params!
     nrf.readPayload = function (opts, cb) {
+        console.log("reading payload");
         if (!cb) cb = _nop;
         if (opts.width === 'auto') nrf.execCommand('R_RX_PL_WID', 1, function (e,d) {
             if (e) return finish(e);
@@ -458,6 +402,7 @@ function nrf(hardware, callback) {
         if (checking && !irq) return;       // avoid simultaneous checks unless latest triggered by real IRQ
         else checking = true;
         nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR'], function (e,d) {
+
             checking = false;
             if (e) nrf.emit('error', e);
             else if (d.RX_DR && d.RX_P_NO === 0x07) setTimeout(function () {
@@ -481,6 +426,7 @@ function nrf(hardware, callback) {
         } else if (irq) {
             // hybrid mode: polling, but of IRQ pin instead of nrf status
             // TODO: use hardware interrupt https://github.com/tessel/beta/issues/216
+            console.log("watching for IRQ");
             irq.watch('fall', irqListener);
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
@@ -506,7 +452,7 @@ function nrf(hardware, callback) {
         nrf.setCE('low','stby2a');
         var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
-        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e,d) {
+        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x03},clearIRQ,features), function (e,d) {
             if (e) return nrf.emit('error', e);
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
@@ -542,22 +488,28 @@ function nrf(hardware, callback) {
         }
     }
     nrf.openPipe = function (rx_tx, addr, opts) {
+        console.log("open pipe hit");
         if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
         if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');
-        else if (typeof addr == 'string') addr = Buffer_workaround(addr, 'hex');
+        else if (typeof addr == 'string') addr = Buffer(addr, 'hex');
+
         opts || (opts = {});
         
         var pipe;
         if (rx_tx === 'rx') {
             var s = slotForAddr(addr);
+            console.log("creating rx pipe");
             pipe = new PRX(s, addr, opts);
+            console.log("new rx pipe");
             rxPipes.push(pipe);
         } else if (rx_tx === 'tx') {
             pipe = new PTX(addr, opts);
+            console.log("new tx pipe");
             txPipes.push(pipe);
         } else {
             throw Error("Unknown pipe mode '"+rx_tx+"', must be 'rx' or 'tx'.");
         }
+        console.log("done with open pipe");
         return pipe;
     };
     nrf._nudgeTX = function () {
@@ -566,11 +518,8 @@ function nrf(hardware, callback) {
         txQ.active = true;
         d.pipe._tx(d.data, function () {
             try {
-                // NOTE: skipping https://github.com/tessel/beta/issues/207 workaround since should only have 1 argument…
                 d.cb.apply(this, arguments);
-            //} finally {
-            // WORKAROUND: https://github.com/tessel/beta/issues/198 (not quite equivalent, this drops exception!)
-            } catch (e) {} if (1) {
+            } finally {
                 delete txQ.active;
                 nrf._nudgeTX();
             }
@@ -588,9 +537,11 @@ function nrf(hardware, callback) {
         
         var s = {},
             n = pipe;           // TODO: what if ack'ed TX already in progress and n=0?
+
+        var hack = {}; // workaround for https://github.com/tessel/beta/issues/314
         if (addr.length > 1) s['AW'] = addr.length - 2;
         if (opts._primRX) {
-            s['PRIM_RX'] = true;
+            hack['PRIM_RX'] = true;
             if (pipe === 0) rxP0 = this;
             if (opts.autoAck) nrf._prevSender = null;         // make sure TX doesn't skip setup
         }
@@ -604,15 +555,20 @@ function nrf(hardware, callback) {
             s['ENAA_P'+n] = true;   // must be set for DPL (…not sure why)
             s['DPL_P'+n] = true;
         } else {
+            console.log("RX_PW", 'RX_PW_P'+n, this._size);
             s['RX_PW_P'+n] = this._size;
             s['ENAA_P'+n] = opts.autoAck;
             s['DPL_P'+n] = false;
         }
-        nrf.setStates(s, function (e) {
-            if (opts._primRX) nrf.setCE(true,'stby2a');
-            if (e) this.emit('error', e);
-            else this.emit('ready');        // TODO: eliminate need to wait for this (setup on first _rx/_tx?)
+        console.log("PxX", s, hack);
+        nrf.setStates(hack, function(e){
+            nrf.setStates(s, function (e) {
+                if (opts._primRX) nrf.setCE(true,'stby2a');
+                if (e) this.emit('error', e);
+                else this.emit('ready');        // TODO: eliminate need to wait for this (setup on first _rx/_tx?)
+            }.bind(this));
         }.bind(this));
+
         
         var irqHandler = this._rx.bind(this);
         nrf.addListener('interrupt', irqHandler);
@@ -642,13 +598,20 @@ function nrf(hardware, callback) {
             }
             if (this._sendOpts.ack) {
                 if (rxP0) rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
-                s['RX_ADDR_P0'] = this._addr;
+                // s['RX_ADDR_P0'] = this._addr;
+                // s['RXADDRP0'] = this._addr;
+                // s['RX_ADDR_P0'] = s['TX_ADDR'];
+                var temp_buf = new Buffer(5);
+                s['RX_ADDR_P0'] = temp_buf.copy(this._addr);
+                console.log("_tx", s['RX_ADDR_P0'], s, this._addr);
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
                 // TODO: shouldn't this be overrideable regardless of _sendOpts.ack??
                 if ('txPower' in this.opts) s['RF_PWR'] = _m.TX_POWER.indexOf(this.opts.txPower);
             }
+            console.log("before set state");
         }
+
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             var sendOpts = _extend({},this._sendOpts);
@@ -662,6 +625,7 @@ function nrf(hardware, callback) {
                 }
                 if (this._sendOpts.ack && rxP0) {
                     s['RX_ADDR_P0'] = rxP0._addr;
+                    console.log("sendOpts.ack", s['RX_ADDR_P0']);
                     rxP0._pipe = 0;
                 }
                 nrf.setStates(s, cb);
@@ -670,9 +634,14 @@ function nrf(hardware, callback) {
         }.bind(this));
     };
     PxX.prototype._rx = function (d) {
-        if (d.RX_P_NO !== this._pipe) return;
-        if (!this._wantsRead) return;           // NOTE: this could starve other RX pipes!
-        
+        if (d.RX_P_NO !== this._pipe){
+            // console.log("some bad pipe", d.RX_P_NO);
+            return;
+        } 
+        if (!this._wantsRead) {
+            // console.log("no wantsRead");
+            return;           // NOTE: this could starve other RX pipes!
+        }
         nrf.readPayload({width:this._size}, function (e,d) {
             if (e) this.emit('error', e);
             else this._wantsRead = this.push(d);
@@ -680,6 +649,7 @@ function nrf(hardware, callback) {
         }.bind(this));
     };
     PxX.prototype._read = function () {
+        console.log("_read called");
         this._wantsRead = true;
         nrf._checkStatus(false);
     };
@@ -691,7 +661,8 @@ function nrf(hardware, callback) {
     };
     
     function PTX(addr,opts) {
-        opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
+        // opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
+
         opts._enableRX = (opts.autoAck || opts.ackPayloads);
         PxX.call(this, 0, addr, opts);
         _extend(this._sendOpts, {ack:opts._enableRX});
@@ -699,7 +670,7 @@ function nrf(hardware, callback) {
     util.inherits(PTX, PxX);
     
     function PRX(pipe, addr, opts) {
-        opts = _extend({size:'auto',autoAck:true}, opts);
+        // opts = _extend({size:'auto',autoAck:true}, opts);
         opts._primRX = opts._enableRX = true;
         PxX.call(this, pipe, addr, opts);
         _extend(this._sendOpts, {ack:false, asAckTo:pipe});
@@ -733,12 +704,15 @@ function nrf(hardware, callback) {
                         _h(d.RX_PW_P0),_h(d.RX_PW_P1),_h(d.RX_PW_P2),
                         _h(d.RX_PW_P3),_h(d.RX_PW_P4),_h(d.RX_PW_P5)
                     );
-                    nrf.getStates(['EN_AA','EN_RXADDR','RF_CH','RF_SETUP','CONFIG','DYNPD','FEATURE'], function (e,d) {
+                    // 'CONFIG',
+                    nrf.getStates(['EN_AA','EN_RXADDR','RF_CH','RF_SETUP','DYNPD','FEATURE'], function (e,d) {
+                        
+                        // EN_AA','EN_RXADDR are missing...?
                         console.log("EN_AA:\t\t",_h(d.EN_AA));
                         console.log("EN_RXADDR:\t",_h(d.EN_RXADDR));
                         console.log("RF_CH:\t\t",_h(d.RF_CH));
                         console.log("RF_SETUP:\t",_h(d.RF_SETUP));
-                        console.log("CONFIG:\t\t",_h(d.CONFIG));
+                        // console.log("CONFIG:\t\t",_h(d.CONFIG));
                         console.log("DYNPD/FEATURE:\t",_h(d.DYNPD),_h(d.FEATURE));
                         nrf.getStates(['RF_DR_LOW','RF_DR_HIGH','EN_CRC','CRCO','RF_PWR'], function (e,d) {
                             var isPlus = false,
@@ -768,7 +742,10 @@ function nrf(hardware, callback) {
                 });
             });
         });
-        function _h(n) { return (Buffer.isBuffer(n)) ? '0x'+n.toString('hex') : '0x'+n.toString(16); }  
+        function _h(n) { 
+            // console.log("n", n);
+            return (Buffer.isBuffer(n)) ? '0x'+n.toString('hex') : '0x'+n.toString(16); 
+        }  
     };
     
     nrf.on('interrupt', function (d) { if (nrf._debug) console.log("IRQ.", d); });

@@ -1,18 +1,17 @@
 /* 
- *  These are settings designed to work out of the box with 
+ *  These are settings for Tessel to work out of the box with 
  *  maniacbug's RF24 pingpair example (https://github.com/maniacbug/RF24/blob/07a4bcf425d91c99105dbdbad0226296c7cd3a93/examples/pingpair/pingpair.pde)
  *  Useful for bridging an Arduino + nRF24 to Tessel + nRF24
  */
 
-
-
 var tessel = require('tessel'),
     NRF24 = require("../"),
     nrf = NRF24.use(tessel.port('a')),
-    pipes = ['F0F0F0F0E1', 'F0F0F0F0D2'],
-    role = 'pong'; // swap this to pong if you want to wait for receive
+    pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2],
+    role = 'ping'; // swap this to pong if you want to wait for receive
 
 nrf._debug = false;
+// nrf._debug = true;
 
 nrf.channel(0x4c) // set the RF channel to 76. Frequency = 2400 + RF_CH [MHz] = 2476MHz
     .transmitPower('PA_MAX') // set the transmit power to max
@@ -25,7 +24,7 @@ nrf.channel(0x4c) // set the RF channel to 76. Frequency = 2400 + RF_CH [MHz] = 
              /* 
               * The Arduino pong code needs to have its timeout changed. On line #205
               * https://github.com/maniacbug/RF24/blob/07a4bcf425d91c99105dbdbad0226296c7cd3a93/examples/pingpair/pingpair.pde#L205
-              * the delay(20) needs to be swapped out with delay(500)
+              * the delay(20) needs to be swapped out with delay(2000)
               */
 
             var tx = nrf.openPipe('tx', pipes[1]), // transmit address F0F0F0F0D2
@@ -49,7 +48,7 @@ nrf.channel(0x4c) // set the RF channel to 76. Frequency = 2400 + RF_CH [MHz] = 
               * The Arduino ping code needs to have its timeout changed. On line #161
               * https://github.com/maniacbug/RF24/blob/07a4bcf425d91c99105dbdbad0226296c7cd3a93/examples/pingpair/pingpair.pde#L161
               * instead of "if (millis() - started_waiting_at > 200 )"
-              * change to "if (millis() - started_waiting_at > 500 )"
+              * change to "if (millis() - started_waiting_at > 2000 )"
               */
 
             var rx = nrf.openPipe('rx', pipes[0], {size: 8});  
