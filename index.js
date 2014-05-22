@@ -25,54 +25,103 @@ function _extend(obj) {
 
 function _nop() {}          // used when a cb is not provided
 
-exports.use = function(hardware, callback) {
-    return new nrf(hardware);
+exports.use = function(hardware, ce, irq, callback) {
+
+    // if we just have hardware assume it's a tessel
+    if (arguments.length <= 2){
+        return new nrf('tessel', hardware, arguments[1]);
+    } else if (arguments.length >= 3){
+        // if we have everything assume it's an RPi
+        return new nrf('pi', hardware, ce, irq, callback);
+    } 
+
 }
 
-function nrf(hardware, callback) {
-    var _spi = "Tessel", _ce = "builtin", _irq = "-";       // only for printDetails!
-    var nrf = new events.EventEmitter(),
+function nrf(type, hardware) {
+    var _spi = type;
+    var _ce, _irq, ce, irq, spi, callback;
+    var nrf = new events.EventEmitter();
+    
+    if (type == 'tessel') {
+        _ce = "builtin";
+        _irq = "builtin";
+        callback = arguments[2];
         spi = new hardware.SPI({chipSelect:hardware.digital[1], chipSelectActive: 0}),
         ce = hardware.digital[2],
         irq = hardware.digital[3];
-    // nrf._debug = true;  
-    // Tessel's transfer always returns as much data as sent
-    spi._nrf_transfer = function (writeBuf, readLen, cb) {
-        if (readLen > writeBuf.length) {
-            var tmpBuff = Buffer(readLen);
-            tmpBuff.fill(0);
-            writeBuf.copy(tmpBuff);
-            writeBuf = tmpBuff;
+
+        // Tessel's transfer always returns as much data as sent
+        nrf._transfer = function (writeBuf, readLen, cb) {
+            if (readLen > writeBuf.length) {
+                var tmpBuff = Buffer(readLen);
+                tmpBuff.fill(0);
+                writeBuf.copy(tmpBuff);
+                writeBuf = tmpBuff;
+            }
+            
+            spi.transfer(writeBuf, function (e,d) {
+                if (e) cb(e);
+                else cb(null, d);
+            });
+        };
+
+        nrf.blockMicroseconds = function (us) {
+            tessel.sleep(us);
+            if (nrf._debug) console.log("slept for "+us+"µs.");
+        };
+
+        nrf.setCE = function (state, block) {
+            if (typeof state === 'string') {
+                ce.input();
+                if (state === 'high') state = true;
+                else if (state === 'low') state = false;
+                else throw Error("Unsupported setCE mode: "+state);
+            }
+            if (state) ce.high();
+            else ce.low();
+            if (nrf._debug) console.log("Set CE "+state+".");
+            if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
         }
-        
-        spi.transfer(writeBuf, function (e,d) {
-            // spi.activeChipSelect(false);
-            if (e) cb(e); // WORKAROUND: https://github.com/tessel/beta/issues/203
-            else cb(null, d);
-        });
-    };
-    
-    
+
+    } else if (type == 'pi'){
+        spi = hardware;
+        ce = arguments[2];
+        irq = arguments[3];
+        callback = arguments[4];
+
+        nrf._transfer = function(buff, len, cb) {
+            spi.transfer(buff, len, cb);
+        }
+
+        nrf.blockMicroseconds = function (us) {
+            // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
+            var start = process.hrtime();
+            while (1) {
+                var diff = process.hrtime(start);
+                if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
+            }
+            if (nrf._debug) console.log("blocked for "+us+"µs.");
+        };
+
+        nrf.setCE = function (state, block) {
+            if (typeof state === 'string') ce.mode(state);
+            else ce.value(state);
+            if (nrf._debug) console.log("Set CE "+state+".");
+            if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
+        };
+
+    } else {
+        throw "Error: nRF can only be used with the Pi or the Tessel at the moment";
+    }
+  
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
-    
-    nrf.blockMicroseconds = (tessel) ? function (us) {
-        tessel.sleep(us);
-        if (nrf._debug) console.log("slept for "+us+"µs.");
-    } : function (us) {
-        // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
-        var start = process.hrtime();
-        while (1) {
-            var diff = process.hrtime(start);
-            if (diff[0] * 1e9 + diff[1] >= us*1e3) break;
-        }
-        if (nrf._debug) console.log("blocked for "+us+"µs.");
-    };
     
     nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
         if (typeof data === 'function' || typeof data === 'undefined') {
             cb = data || _nop;
             data = 0;
         }
+        if (nrf._debug) console.log('execCommand', cmd, data);
         
         var cmdByte;
         if (typeof cmd === 'string') {
@@ -98,37 +147,31 @@ function nrf(hardware, callback) {
             readLen = data;
         }
         
-        if (nrf._debug) console.log('execCommand', cmd, readLen, writeBuf);
-        
-        spi._nrf_transfer(writeBuf, readLen && readLen+1, function (e,d) {
-            if (nrf._debug && readLen) console.log(' - got:', d);
+        nrf._transfer(writeBuf, readLen && readLen+1, function (e,d) {
+            if (nrf._debug && readLen) console.log(' - exec read:', d);
             if (e) return cb(e);
             else return cb(null, d && Array.prototype.reverse.call(d.slice(1)));
         });
     };   
+  
     
     function registersForMnemonics(list) {
         var registersNeeded = Object.create(null);
-        var count = 0;
         list.forEach(function (mnem) {
             var _r = _m.REGISTER_MAP[mnem];
-            // console.log("mnem", mnem, _m.REGISTER_MAP[mnem]);
             if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
-            if (_r.length === 1) _r.push(0), _r.push(8);
+            if (_r.length === 1) _r.push(0,8);
             
             var reg = _r[0],
                 howManyBits = _r[2] || 1,
                 iq = registersNeeded[reg] || (registersNeeded[reg] = {arr:[]});
             iq.len = (howManyBits / 8 >> 0) || 1;
-
             if (howManyBits < 8) iq.arr.push(mnem);
             else iq.solo = mnem;
-
-            // console.log("reg", reg, "howManyBits", howManyBits, "iq", iq, "registersNeeded[reg]", registersNeeded[reg], "iq.len", iq.len, registersNeeded);
-            // console.log("reg", reg, "registersNeeded[reg]", registersNeeded[reg], registersNeeded);
         });
         return registersNeeded;
     }
+
     
     function maskForMnemonic(mnem) {
         var _r = _m.REGISTER_MAP[mnem],
@@ -141,13 +184,11 @@ function nrf(hardware, callback) {
     nrf.getStates = function (list, cb) {
         var registersNeeded = registersForMnemonics(list),
             states = Object.create(null);
-            // console.log("registers needed", list, registersNeeded);
         function processInquiryForRegister(reg, cb) {
             // TODO: execCommand always reads register 0x07 but we're not optimizing for that
             // TODO: we could probably also eliminate re-fetch of 0x07 during IRQ processing
             var iq = registersNeeded[reg];
             reg = +reg;
-            
             nrf.execCommand(['R_REGISTER',reg], iq.len, function (e,d) {
                 if (e) return cb(e);
                 iq.arr.forEach(function (mnem) {
@@ -163,6 +204,7 @@ function nrf(hardware, callback) {
             cb(e,states);
         });
     };
+
     
     var _statusReg = _m.REGISTER_MAP['STATUS'][0];
     nrf.setStates = function (vals, cb) {
@@ -172,7 +214,6 @@ function nrf(hardware, callback) {
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
             reg = +reg;     // was string key, now convert back to number
-            
             // if a register is "full" we can simply overwrite, otherwise we must read+merge
             // NOTE: high bits in RF_CH/PX_PW_Pn are *reserved*, i.e. technically need merging
             if (!iq.arr.length || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
@@ -185,8 +226,6 @@ function nrf(hardware, callback) {
                     settlingNeeded = 0;
                 if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
-                    vals[mnem] = (vals[mnem] << 0); // convert boolean to number
-
                     var m = maskForMnemonic(mnem);
                     if (mnem === 'PWR_UP') {
                         var rising = !(d[0] & m.mask) && vals[mnem];
@@ -198,33 +237,17 @@ function nrf(hardware, callback) {
                     val &= ~m.mask;        // clear current value
                     val |= (vals[mnem] << m.rightmostBit) & m.mask;
                 });
-                if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function (e,d) {
+                if (val !== d[0] || reg === _statusReg) nrf.execCommand(['W_REGISTER', reg], [val], function () {
                     if (settlingNeeded) nrf.blockMicroseconds(settlingNeeded);  // see p.24
                     cb.apply(this, arguments);
                 });
-                else cb(null, '-');  // don't bother writing if value hasn't changed (unless status, which clears bits)
+                else cb(null);  // don't bother writing if value hasn't changed (unless status, which clears bits)
             });
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
     };
+
     
-    nrf.setCE = (tessel) ? function (state, block) {
-        if (typeof state === 'string') {
-            ce.input();
-            if (state === 'high') state = true;
-            else if (state === 'low') state = false;
-            else throw Error("Unsupported setCE mode: "+state);
-        }
-        if (state) ce.high();
-        else ce.low();
-        if (nrf._debug) console.log("Set CE "+state+".");
-        if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
-    } : function (state, block) {
-        if (typeof state === 'string') ce.mode(state);
-        else ce.value(state);
-        if (nrf._debug) console.log("Set CE "+state+".");
-        if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
-    };
     nrf.pulseCE = function (block) {
         nrf.setCE(true,'hce');
         nrf.setCE(false,block);
@@ -264,10 +287,19 @@ function nrf(hardware, callback) {
                 else cb(null, '1Mbps');
             });
         } else {
-            if (val === '1Mbps') val = {RF_DR_LOW:false,RF_DR_HIGH:false};
-            else if (val === '2Mbps') val = {RF_DR_LOW:false,RF_DR_HIGH:true};
-            else if (val == '250kbps') val = {RF_DR_LOW:true,RF_DR_HIGH:false};
-            else throw Error("dataRate must be one of '1Mbps', '2Mbps', or '250kbps'.");
+            switch (val) {
+                case '1Mbps':
+                    val = {RF_DR_LOW:false,RF_DR_HIGH:false};
+                    break;
+                case '2Mbps':
+                    val = {RF_DR_LOW:false,RF_DR_HIGH:true};
+                    break;
+                case '250kbps':
+                    val = {RF_DR_LOW:true,RF_DR_HIGH:false};
+                    break;
+                default:
+                    throw Error("dataRate must be one of '1Mbps', '2Mbps', or '250kbps'.");
+            }
             nrf.setStates(val, cb);
         }
         return this;
@@ -295,10 +327,19 @@ function nrf(hardware, callback) {
                 else cb(null, 1);
             });
         } else {
-            if (val === 0) val = {EN_CRC:false,CRCO:0};
-            else if (val === 1) val = {EN_CRC:true,CRCO:0};
-            else if (val === 2) val = {EN_CRC:true,CRCO:1};
-            else throw Error("crcBytes must be 1, 2, or 0.");
+            switch (val) {
+                case 0:
+                    val = {EN_CRC:false,CRCO:0};
+                    break;
+                case 1:
+                    val = {EN_CRC:true,CRCO:0};
+                    break;
+                case 2:
+                    val = {EN_CRC:true,CRCO:1};
+                    break;
+                default:
+                    throw Error("crcBytes must be 1, 2, or 0.");
+            }
             nrf.setStates(val, cb);
         }
         return this;
@@ -327,7 +368,6 @@ function nrf(hardware, callback) {
     
     // caller must know pipe and provide its params!
     nrf.readPayload = function (opts, cb) {
-        console.log("reading payload");
         if (!cb) cb = _nop;
         if (opts.width === 'auto') nrf.execCommand('R_RX_PL_WID', 1, function (e,d) {
             if (e) return finish(e);
@@ -402,7 +442,6 @@ function nrf(hardware, callback) {
         if (checking && !irq) return;       // avoid simultaneous checks unless latest triggered by real IRQ
         else checking = true;
         nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR'], function (e,d) {
-
             checking = false;
             if (e) nrf.emit('error', e);
             else if (d.RX_DR && d.RX_P_NO === 0x07) setTimeout(function () {
@@ -425,8 +464,6 @@ function nrf(hardware, callback) {
             irq.addListener('fall', irqListener);
         } else if (irq) {
             // hybrid mode: polling, but of IRQ pin instead of nrf status
-            // TODO: use hardware interrupt https://github.com/tessel/beta/issues/216
-            console.log("watching for IRQ");
             irq.watch('fall', irqListener);
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
@@ -439,7 +476,8 @@ function nrf(hardware, callback) {
     nrf._irqOff = function () {
         if (!irqOn) return;
         else if (irq && !tessel) irq.removeListener('fall', irqListener);
-        else irq.unwatch('fall');
+        else if (tessel) irq.unwatch('fall');
+        else clearInterval(irqListener);
         irqOn = false;
     };
     
@@ -452,7 +490,7 @@ function nrf(hardware, callback) {
         nrf.setCE('low','stby2a');
         var clearIRQ = {RX_DR:true, TX_DS:true, MAX_RT:true},
             features = {EN_DPL:true, EN_ACK_PAY:true, EN_DYN_ACK:true};
-        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x03},clearIRQ,features), function (e,d) {
+        nrf.reset(_extend({PWR_UP:true, PRIM_RX:false, EN_RXADDR:0x00},clearIRQ,features), function (e) {
             if (e) return nrf.emit('error', e);
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
@@ -488,28 +526,21 @@ function nrf(hardware, callback) {
         }
     }
     nrf.openPipe = function (rx_tx, addr, opts) {
-        console.log("open pipe hit");
         if (!ready) throw Error("Radio .begin() must be finished before a pipe can be opened.");
         if (typeof addr === 'number') addr = Buffer(addr.toString(16), 'hex');
-        else if (typeof addr == 'string') addr = Buffer(addr, 'hex');
-
         opts || (opts = {});
         
         var pipe;
         if (rx_tx === 'rx') {
             var s = slotForAddr(addr);
-            console.log("creating rx pipe");
             pipe = new PRX(s, addr, opts);
-            console.log("new rx pipe");
             rxPipes.push(pipe);
         } else if (rx_tx === 'tx') {
             pipe = new PTX(addr, opts);
-            console.log("new tx pipe");
             txPipes.push(pipe);
         } else {
             throw Error("Unknown pipe mode '"+rx_tx+"', must be 'rx' or 'tx'.");
         }
-        console.log("done with open pipe");
         return pipe;
     };
     nrf._nudgeTX = function () {
@@ -537,11 +568,9 @@ function nrf(hardware, callback) {
         
         var s = {},
             n = pipe;           // TODO: what if ack'ed TX already in progress and n=0?
-
-        var hack = {}; // workaround for https://github.com/tessel/beta/issues/314
         if (addr.length > 1) s['AW'] = addr.length - 2;
         if (opts._primRX) {
-            hack['PRIM_RX'] = true;
+            s['PRIM_RX'] = true;
             if (pipe === 0) rxP0 = this;
             if (opts.autoAck) nrf._prevSender = null;         // make sure TX doesn't skip setup
         }
@@ -555,20 +584,15 @@ function nrf(hardware, callback) {
             s['ENAA_P'+n] = true;   // must be set for DPL (…not sure why)
             s['DPL_P'+n] = true;
         } else {
-            console.log("RX_PW", 'RX_PW_P'+n, this._size);
             s['RX_PW_P'+n] = this._size;
             s['ENAA_P'+n] = opts.autoAck;
             s['DPL_P'+n] = false;
         }
-        console.log("PxX", s, hack);
-        nrf.setStates(hack, function(e){
-            nrf.setStates(s, function (e) {
-                if (opts._primRX) nrf.setCE(true,'stby2a');
-                if (e) this.emit('error', e);
-                else this.emit('ready');        // TODO: eliminate need to wait for this (setup on first _rx/_tx?)
-            }.bind(this));
+        nrf.setStates(s, function (e) {
+            if (opts._primRX) nrf.setCE(true,'stby2a');
+            if (e) this.emit('error', e);
+            else this.emit('ready');        // TODO: eliminate need to wait for this (setup on first _rx/_tx?)
         }.bind(this));
-
         
         var irqHandler = this._rx.bind(this);
         nrf.addListener('interrupt', irqHandler);
@@ -598,20 +622,13 @@ function nrf(hardware, callback) {
             }
             if (this._sendOpts.ack) {
                 if (rxP0) rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
-                // s['RX_ADDR_P0'] = this._addr;
-                // s['RXADDRP0'] = this._addr;
-                // s['RX_ADDR_P0'] = s['TX_ADDR'];
-                var temp_buf = new Buffer(5);
-                s['RX_ADDR_P0'] = temp_buf.copy(this._addr);
-                console.log("_tx", s['RX_ADDR_P0'], s, this._addr);
+                s['RX_ADDR_P0'] = this._addr;
                 if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
                 if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
                 // TODO: shouldn't this be overrideable regardless of _sendOpts.ack??
                 if ('txPower' in this.opts) s['RF_PWR'] = _m.TX_POWER.indexOf(this.opts.txPower);
             }
-            console.log("before set state");
         }
-
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             var sendOpts = _extend({},this._sendOpts);
@@ -625,7 +642,6 @@ function nrf(hardware, callback) {
                 }
                 if (this._sendOpts.ack && rxP0) {
                     s['RX_ADDR_P0'] = rxP0._addr;
-                    console.log("sendOpts.ack", s['RX_ADDR_P0']);
                     rxP0._pipe = 0;
                 }
                 nrf.setStates(s, cb);
@@ -634,14 +650,9 @@ function nrf(hardware, callback) {
         }.bind(this));
     };
     PxX.prototype._rx = function (d) {
-        if (d.RX_P_NO !== this._pipe){
-            // console.log("some bad pipe", d.RX_P_NO);
-            return;
-        } 
-        if (!this._wantsRead) {
-            // console.log("no wantsRead");
-            return;           // NOTE: this could starve other RX pipes!
-        }
+        if (d.RX_P_NO !== this._pipe) return;
+        if (!this._wantsRead) return;           // NOTE: this could starve other RX pipes!
+        
         nrf.readPayload({width:this._size}, function (e,d) {
             if (e) this.emit('error', e);
             else this._wantsRead = this.push(d);
@@ -649,7 +660,6 @@ function nrf(hardware, callback) {
         }.bind(this));
     };
     PxX.prototype._read = function () {
-        console.log("_read called");
         this._wantsRead = true;
         nrf._checkStatus(false);
     };
@@ -661,8 +671,7 @@ function nrf(hardware, callback) {
     };
     
     function PTX(addr,opts) {
-        // opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
-
+        opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
         opts._enableRX = (opts.autoAck || opts.ackPayloads);
         PxX.call(this, 0, addr, opts);
         _extend(this._sendOpts, {ack:opts._enableRX});
@@ -670,7 +679,7 @@ function nrf(hardware, callback) {
     util.inherits(PTX, PxX);
     
     function PRX(pipe, addr, opts) {
-        // opts = _extend({size:'auto',autoAck:true}, opts);
+        opts = _extend({size:'auto',autoAck:true}, opts);
         opts._primRX = opts._enableRX = true;
         PxX.call(this, pipe, addr, opts);
         _extend(this._sendOpts, {ack:false, asAckTo:pipe});
@@ -704,15 +713,12 @@ function nrf(hardware, callback) {
                         _h(d.RX_PW_P0),_h(d.RX_PW_P1),_h(d.RX_PW_P2),
                         _h(d.RX_PW_P3),_h(d.RX_PW_P4),_h(d.RX_PW_P5)
                     );
-                    // 'CONFIG',
-                    nrf.getStates(['EN_AA','EN_RXADDR','RF_CH','RF_SETUP','DYNPD','FEATURE'], function (e,d) {
-                        
-                        // EN_AA','EN_RXADDR are missing...?
+                    nrf.getStates(['CONFIG','EN_AA','EN_RXADDR','RF_CH','RF_SETUP','DYNPD','FEATURE'], function (e,d) {
                         console.log("EN_AA:\t\t",_h(d.EN_AA));
                         console.log("EN_RXADDR:\t",_h(d.EN_RXADDR));
                         console.log("RF_CH:\t\t",_h(d.RF_CH));
                         console.log("RF_SETUP:\t",_h(d.RF_SETUP));
-                        // console.log("CONFIG:\t\t",_h(d.CONFIG));
+                        console.log("CONFIG:\t\t",_h(d.CONFIG));
                         console.log("DYNPD/FEATURE:\t",_h(d.DYNPD),_h(d.FEATURE));
                         nrf.getStates(['RF_DR_LOW','RF_DR_HIGH','EN_CRC','CRCO','RF_PWR'], function (e,d) {
                             var isPlus = false,
@@ -743,7 +749,6 @@ function nrf(hardware, callback) {
             });
         });
         function _h(n) { 
-            // console.log("n", n);
             return (Buffer.isBuffer(n)) ? '0x'+n.toString('hex') : '0x'+n.toString(16); 
         }  
     };
