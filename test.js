@@ -2,6 +2,8 @@
 
 var NRF24 = require("./index"),
     spiDev = "/dev/spidev0.0",
+    SPI = require('pi-spi'),
+    GPIO = require('pi-pins'),
     cePin = 24, irqPin = 25,            //var ce = require("./gpio").connect(cePin)
     pipes = [0xF0F0F0F0E1, 0xF0F0F0F0D2],
     role = 'ping';
@@ -20,9 +22,15 @@ CountStream.prototype._read = function () {
     this.push(b);
 };
 
-var nrf = NRF24.connect(spiDev, cePin, irqPin);
+var nrf = NRF24.channel(0x4c)
+    .transmitPower('PA_MAX')
+    .dataRate('1Mbps')
+    .crcBytes(2)
+    .autoRetransmit({count:15, delay:4000})
+    .use(SPI.initialize(spiDev), GPIO.connect(cePin), GPIO.connect(irqPin));
+
 //nrf._debug = true;
-nrf.channel(0x4c).transmitPower('PA_MAX').dataRate('1Mbps').crcBytes(2).autoRetransmit({count:15, delay:4000}).begin(function () {
+nrf.on('ready', function () {
     if (role === 'ping') {
         console.log("PING out");
         var tx = nrf.openPipe('tx', pipes[0]),

@@ -27,5 +27,10 @@
     "pi-spi": "~0.8.1",
     "queue-async": "~1.0.4",
     "pi-pins": "^1.0.0"
+  },
+  // prevent tessel from including pi files
+  "hardware": {
+    "pi-spi": false,
+    "pi-pins": false
   }
 }
