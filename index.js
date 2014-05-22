@@ -33,10 +33,11 @@ nrfWrapper.use =function(hardware, ce, irq, callback) {
     var nrfObj;
     // if we just have hardware assume it's a tessel
     if (arguments.length <= 2){
-        nrfObj = new nrf('tessel', hardware, arguments[1]);
+        callback = arguments[1];
+        nrfObj = new nrf('tessel', hardware);
     } else if (arguments.length >= 3){
         // if we have everything assume it's an RPi
-        nrfObj = new nrf('pi', hardware, ce, irq, callback);
+        nrfObj = new nrf('pi', hardware, ce, irq);
     } 
     // go through and apply all options
     forEachWithCB.call(Object.keys(nrfOpts), function(key, cb){
@@ -45,6 +46,7 @@ nrfWrapper.use =function(hardware, ce, irq, callback) {
         // on finish emit ready
         nrfObj.begin(function(){
             nrfObj.emit('ready');
+            callback && callback();
         });
     })
 
@@ -85,13 +87,12 @@ module.exports = nrfWrapper;
 
 function nrf(type, hardware) {
     var _spi = type;
-    var _ce, _irq, ce, irq, spi, callback;
+    var _ce, _irq, ce, irq, spi;
     var nrf = new events.EventEmitter();
     
     if (type == 'tessel') {
         _ce = "builtin";
         _irq = "builtin";
-        callback = arguments[2];
         spi = new hardware.SPI({chipSelect:hardware.digital[1], chipSelectActive: 0}),
         ce = hardware.digital[2],
         irq = hardware.digital[3];
@@ -133,7 +134,6 @@ function nrf(type, hardware) {
         spi = hardware;
         ce = arguments[2];
         irq = arguments[3];
-        callback = arguments[4];
 
         nrf._transfer = function(buff, len, cb) {
             spi.transfer(buff, len, cb);
@@ -540,8 +540,11 @@ function nrf(type, hardware) {
             if (e) return nrf.emit('error', e);
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
+            // nrf.emit('ready');
             if (cb) cb();
         });
+        // .use now emits and handles .ready
+        // if (cb) nrf.once('ready', cb);
     };
     nrf.end = function (cb) {
         var pipes = txPipes.concat(rxPipes);
