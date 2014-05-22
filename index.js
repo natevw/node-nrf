@@ -9,6 +9,8 @@ try {
     tessel = require('tessel');
 } catch (e) {}
 
+var nrfOpts = {};
+
 function forEachWithCB(fn, cb) {
     var process = q(1);
     this.forEach(function (d) { process.defer(fn, d); });
@@ -25,17 +27,61 @@ function _extend(obj) {
 
 function _nop() {}          // used when a cb is not provided
 
-exports.use = function(hardware, ce, irq, callback) {
+function nrfWrapper(){}
 
+nrfWrapper.use =function(hardware, ce, irq, callback) {
+    var nrfObj;
     // if we just have hardware assume it's a tessel
     if (arguments.length <= 2){
-        return new nrf('tessel', hardware, arguments[1]);
+        nrfObj = new nrf('tessel', hardware, arguments[1]);
     } else if (arguments.length >= 3){
         // if we have everything assume it's an RPi
-        return new nrf('pi', hardware, ce, irq, callback);
+        nrfObj = new nrf('pi', hardware, ce, irq, callback);
     } 
+    // go through and apply all options
+    forEachWithCB.call(Object.keys(nrfOpts), function(key, cb){
+        nrfObj[key](nrfOpts[key], cb);
+    }, function(){
+        // on finish emit ready
+        nrfObj.begin(function(){
+            nrfObj.emit('ready');
+        });
+    })
 
+    return nrfObj;
 }
+
+nrfWrapper.channel = function(val){
+    nrfOpts.channel = val;
+    return this;
+}
+
+nrfWrapper.dataRate = function(val){
+    nrfOpts.dataRate = val;
+    return this;
+}
+
+nrfWrapper.transmitPower = function(val){
+    nrfOpts.transmitPower = val;
+    return this;
+}
+
+nrfWrapper.crcBytes = function(val){
+    nrfOpts.crcBytes = val;
+    return this;
+}
+
+nrfWrapper.addressWidth = function(val){
+    nrfOpts.addressWidth = val;
+    return this;
+}
+
+nrfWrapper.autoRetransmit = function(val){
+    nrfOpts.autoRetransmit = val;
+    return this;
+}
+
+module.exports = nrfWrapper;
 
 function nrf(type, hardware) {
     var _spi = type;
@@ -494,9 +540,8 @@ function nrf(type, hardware) {
             if (e) return nrf.emit('error', e);
             nrf._irqOn();           // NOTE: on before any pipes to facilite lower-level sendPayload use
             ready = true;
-            nrf.emit('ready');
+            if (cb) cb();
         });
-        if (cb) nrf.once('ready', cb);
     };
     nrf.end = function (cb) {
         var pipes = txPipes.concat(rxPipes);
