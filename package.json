@@ -4,7 +4,7 @@
   "description": "nRF24L01 driver library",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./testsuite.js"
   },
   "repository": {
     "type": "git",
@@ -28,9 +28,16 @@
     "queue-async": "~1.0.4",
     "pi-pins": "^1.0.0"
   },
-  // prevent tessel from including pi files
   "hardware": {
     "pi-spi": false,
-    "pi-pins": false
+    "pi-pins": false,
+    "tape": false,
+    "tap": false,
+    "shelljs": false
+  },
+  "devDependencies": {
+    "tape": "~2.3.2",
+    "tap": "git+https://github.com/tcr/node-tap.git#3cb76e",
+    "shelljs": "~0.3.0"
   }
 }
