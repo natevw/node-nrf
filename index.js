@@ -93,9 +93,9 @@ function nrf(type, hardware) {
     if (type == 'tessel') {
         _ce = "builtin";
         _irq = "builtin";
-        spi = new hardware.SPI({chipSelect:hardware.digital[1], chipSelectActive: 0}),
-        ce = hardware.digital[2],
-        irq = hardware.digital[3];
+        spi = new hardware.SPI({chipSelect:hardware.digital[0], chipSelectActive: 0}),
+        ce = hardware.digital[1],
+        irq = hardware.digital[2];
 
         // Tessel's transfer always returns as much data as sent
         nrf._transfer = function (writeBuf, readLen, cb) {
