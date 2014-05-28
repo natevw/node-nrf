@@ -89,7 +89,7 @@ function nrf(type, hardware) {
     var _spi = type;
     var _ce, _irq, ce, irq, spi;
     var nrf = new events.EventEmitter();
-    
+    nrf._debug = true;
     if (type == 'tessel') {
         _ce = "builtin";
         _irq = "builtin";
@@ -510,7 +510,7 @@ function nrf(type, hardware) {
             irq.addListener('fall', irqListener);
         } else if (irq) {
             // hybrid mode: polling, but of IRQ pin instead of nrf status
-            irq.watch('fall', irqListener);
+            irq.on('fall', irqListener);
         } else {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
             irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners?
@@ -522,7 +522,7 @@ function nrf(type, hardware) {
     nrf._irqOff = function () {
         if (!irqOn) return;
         else if (irq && !tessel) irq.removeListener('fall', irqListener);
-        else if (tessel) irq.unwatch('fall');
+        else if (tessel) irq.removeListener('fall', irqListener);
         else clearInterval(irqListener);
         irqOn = false;
     };
