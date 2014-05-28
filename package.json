@@ -1,6 +1,6 @@
 {
   "name": "rf-nrf24",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "nRF24L01 driver library",
   "main": "index.js",
   "scripts": {
