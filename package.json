@@ -1,10 +1,10 @@
 {
-  "name": "nrf",
-  "version": "0.8.1",
+  "name": "rf-nrf24",
+  "version": "0.8.2",
   "description": "nRF24L01 driver library",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tinytap -e 'tessel run {}' test/*.js"
   },
   "repository": {
     "type": "git",
@@ -27,5 +27,12 @@
     "pi-spi": "~0.8.1",
     "queue-async": "~1.0.4",
     "pi-pins": "^1.0.0"
+  },
+  "hardware": {
+    "pi-spi": false,
+    "pi-pins": false
+  },
+  "devDependencies": {
+    "tinytap": "~0.0.2"
   }
 }
