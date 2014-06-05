@@ -1,9 +1,9 @@
-# NRF
-nRF24L01+ driver library for node.js on platforms like the [Raspberry Pi](http://en.wikipedia.org/wiki/Raspberry_Pi) and [others](http://tessel.io/). The hardware documentation for this module can be found [here](https://github.com/tessel/hardware/blob/master/modules-overview.md#nrf).
+# nrf24
+nRF24L01+ driver library for node.js on platforms like the [Raspberry Pi](http://en.wikipedia.org/wiki/Raspberry_Pi) and [others](http://tessel.io/). The hardware documentation for this module can be found [here](https://github.com/tessel/hardware/blob/master/modules-overview.md#nrf24).
 
 Making this inexpensive radio chip easy to use from node.js helps bridge the wider Internet with small/cheap "things" — other embedded devices like [Arduino](http://arduino.cc/), [Teensy](http://www.pjrc.com/teensy/), good ol'fashioned [AVR chips](https://www.sparkfun.com/products/11232), … — where the costs of WiFi/Bluetooth/Zigbee radios can quickly add up! This fulfills a critical dependency of my [Microstates](https://github.com/natevw/microstates) idea, for just one example.
 
-If you run into any issues you can ask for support on the [NRF Module Forums](http://forums.tessel.io/category/nrf).
+If you run into any issues you can ask for support on the [nrf24 Module Forums](http://forums.tessel.io/category/nrf24).
 
 ###See Also
 Not to be confused with [node-rf24](https://github.com/natevw/node-rf24) which was/is an unfinished (and broken by recent V8 and libuv changes) wrapper around the RasPi port of the C++ [RF24 library](https://github.com/stanleyseow/RF24).
