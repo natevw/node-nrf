@@ -1,7 +1,11 @@
-/* tessel to tessel
- * requires 2 nrf24 modules (and ideally two tessels)
- * put one tessel+nrf on "ping" mode and another one on "pong" mode
- */
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+/*********************************************
+Tessel to tessel requires 2 nrf24 modules 
+(and ideally two tessels) put one tessel+nrf 
+on "ping" mode and another one on "pong" mode.
+*********************************************/
 
 var tessel = require('tessel'),
 	NRF24 = require("../"),

@@ -1,8 +1,14 @@
-/* 
- *  These are settings for Tessel to work out of the box with 
- *  maniacbug's RF24 pingpair example (https://github.com/maniacbug/RF24/blob/07a4bcf425d91c99105dbdbad0226296c7cd3a93/examples/pingpair/pingpair.pde)
- *  Useful for bridging an Arduino + nRF24 to Tessel + nRF24
- */
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+/*********************************************
+These are settings for Tessel to work out of 
+the box with maniacbug's RF24 pingpair example
+(https://github.com/maniacbug/RF24/blob/
+07a4bcf425d91c99105dbdbad0226296c7cd3a93/
+examples/pingpair/pingpair.pde) Useful for 
+bridging an Arduino + nRF24 to Tessel + nRF24.
+*********************************************/
 
 var tessel = require('tessel'),
     NRF24 = require("../"),
