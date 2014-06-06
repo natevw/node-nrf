@@ -171,3 +171,6 @@ See [this comment](https://github.com/natevw/node-nrf/issues/1#issuecomment-3239
 * [NRF Ping Pair](https://github.com/tessel/rf-nrf24/blob/master/examples/RF24-pingpair.js). These are settings for Tessel to work out of the box with 
  maniacbug's [RF24 pingpair example](https://github.com/maniacbug/RF24/blob/07a4bcf425d91c99105dbdbad0226296c7cd3a93/examples/pingpair/pingpair.pde)
  Useful for bridging an Arduino + nRF24 to Tessel + nRF24. 
+
+###License
+MIT or Apache 2.0, at your option
