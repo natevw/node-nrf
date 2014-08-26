@@ -1,4 +1,5 @@
 var q = require('queue-async'),
+    fifo = require('fifolock'),
     stream = require('stream'),
     util = require('util'),
     events = require('events'),
@@ -6,11 +7,12 @@ var q = require('queue-async'),
     GPIO = require('pi-pins'),
     _m = require("./magicnums");
 
-function forEachWithCB(fn, cb) {
+var mutex = fifo();   // HACK: avoid https://github.com/natevw/node-nrf/commit/8d80dabde1026e949f4eb4ea6d25624cbf3c70ec
+function forEachWithCB(fn, cb) { cb = mutex.TRANSACTION_WRAPPER(cb, function () {
     var process = q(1);
     this.forEach(function (d) { process.defer(fn, d); });
     process.awaitAll(cb);
-};
+}.bind(this)); }
 
 function _extend(obj) {
     for (var i = 1, len = arguments.length; i < len; i++) {

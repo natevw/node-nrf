@@ -24,8 +24,9 @@
     "url": "https://github.com/natevw/node-nrf/issues"
   },
   "dependencies": {
+    "fifolock": "^1.0.0",
+    "pi-pins": "^1.0.0",
     "pi-spi": "~0.8.1",
-    "queue-async": "~1.0.4",
-    "pi-pins": "^1.0.0"
+    "queue-async": "~1.0.4"
   }
 }
