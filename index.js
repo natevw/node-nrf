@@ -366,13 +366,19 @@ exports.connect = function (spi,ce,irq) {
         .await(cb);
     };
     
+    var checking = false;
     nrf._checkStatus = function (irq) {
+        if (nrf._debug) console.log("_checkStatus, irq =", irq, "checking =", checking);
+        if (checking && !irq) return;       // avoid simultaneous checks unless latest triggered by real IRQ
+        else checking = true;
         nrf.getStates(['RX_P_NO','TX_DS','MAX_RT','RX_DR'], function (e,d) {
             checking = false;
             if (e) nrf.emit('error', e);
             else if (d.RX_DR && d.RX_P_NO === 0x07) setTimeout(function () {
                 // HACK: chip seems to assert RX_DR a while before setting RX_P_NO, so poll if necessary
                 // TODO: this may actually just happen until we reset RX_DR (maybe FLUSH_RX or similar unsyncs?)
+                // see also note on top of datasheet p.52 about status register updated *during* IRQ transmission
+                if (nrf._debug) console.warn("- weird status, checking again -");
                 nrf._checkStatus(false);
             }, 0);
             else if (irq || d.RX_P_NO !== 0x07 || d.TX_DS || d.MAX_RT) nrf.emit('interrupt', d);
