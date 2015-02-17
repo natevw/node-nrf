@@ -1,5 +1,6 @@
 var q = require('queue-async'),
     fifo = require('fifolock'),
+    _extend = require('xok'),
     stream = require('stream'),
     util = require('util'),
     events = require('events'),
@@ -14,16 +15,7 @@ function forEachWithCB(fn, cb) { cb = mutex.TRANSACTION_WRAPPER(cb, function () 
     process.awaitAll(cb);
 }.bind(this)); }
 
-function _extend(obj) {
-    for (var i = 1, len = arguments.length; i < len; i++) {
-        var nxt = arguments[i];
-        Object.keys(nxt).forEach(function (k) { obj[k] = nxt[k]; });
-    }
-    return obj;
-}
-
 function _nop() {}          // used when a cb is not provided
-
 
 exports.connect = function (spi,ce,irq) {
     var _spi = spi, _ce = ce, _irq = irq;       // only for printDetails!
