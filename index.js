@@ -1,4 +1,4 @@
-var q = require('queue-async'),
+var async = require('queue-async'),
     fifo = require('fifolock'),
     _extend = require('xok'),
     stream = require('stream'),
@@ -8,12 +8,11 @@ var q = require('queue-async'),
     GPIO = require('pi-pins'),
     _m = require("./magicnums");
 
-var mutex = fifo();   // HACK: avoid https://github.com/natevw/node-nrf/commit/8d80dabde1026e949f4eb4ea6d25624cbf3c70ec
-function forEachWithCB(fn, cb) { cb = mutex.TRANSACTION_WRAPPER(cb, function () {
-    var process = q(1);
+function forEachWithCB(fn, cb) {
+    var process = async(1);
     this.forEach(function (d) { process.defer(fn, d); });
     process.awaitAll(cb);
-}.bind(this)); }
+}
 
 function _nop() {}          // used when a cb is not provided
 
@@ -26,6 +25,7 @@ exports.connect = function (spi,ce,irq) {
     
     nrf._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
     
+    // these are all blocking calls (n.b.) and therefore don't need a LOCK
     nrf.blockMicroseconds = function (us) {
         // NOTE: setImmediate/process.nextTick too slow (especially on Pi) so we just spinloop for µs
         var start = process.hrtime();
@@ -35,8 +35,24 @@ exports.connect = function (spi,ce,irq) {
         }
         if (nrf._debug) console.log("blocked for "+us+"µs.");
     };
+    nrf.setCE = function (state, block) {
+        if (typeof state === 'string') ce.mode(state);
+        else ce.value(state);
+        if (nrf._debug) console.log("Set CE "+state+".");
+        if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
+    };
+    nrf.pulseCE = function (block) {
+        nrf.setCE(true,'hce');
+        nrf.setCE(false,block);
+    };
     
-    nrf.execCommand = function (cmd, data, cb) {        // (can omit data, or specify readLen instead)
+    
+    var q = fifo(),
+        LOCK = q.TRANSACTION_WRAPPER,
+        NEST = Object.create(null);     // signal value
+    
+    nrf.execCommand = function (cmd, data, cb, _n) { cb = LOCK(cb, function () {
+        // NOTE: can omit `data` buffer, or specify numeric `readLen` instead
         if (typeof data === 'function' || typeof data === 'undefined') {
             cb = data || _nop;
             data = 0;
@@ -72,9 +88,9 @@ exports.connect = function (spi,ce,irq) {
             if (e) return cb(e);
             else return cb(null, d && Array.prototype.reverse.call(d.slice(1)));
         });
-    };   
+    }, (_n === NEST)); };
     
-    nrf.getStates = function (list, cb) {
+    nrf.getStates = function (list, cb, _n) { cb = LOCK(cb, function () {
         var registersNeeded = _m.registersForMnemonics(list),
             states = Object.create(null);
         function processInquiryForRegister(reg, cb) {
@@ -90,16 +106,16 @@ exports.connect = function (spi,ce,irq) {
                 });
                 if (iq.solo) states[iq.solo] = d;
                 cb();
-            });
+            }, NEST);
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
             if (nrf._debug) console.log('gotStates', states, e);
             cb(e,states);
         });
-    };
+    }, (_n === NEST)); };
     
     var _statusReg = _m.REGISTER_MAP['STATUS'][0];
-    nrf.setStates = function (vals, cb) {
+    nrf.setStates = function (vals, cb, _n) { cb = LOCK(cb, function () {
         if (nrf._debug) console.log('setStates', vals);
         if (!cb) cb = _nop;
         var registersNeeded = _m.registersForMnemonics(Object.keys(vals));
@@ -111,7 +127,7 @@ exports.connect = function (spi,ce,irq) {
             if (!iq.arr.length || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
                 var val = vals[iq.solo || iq.arr[0]],
                     buf = (Buffer.isBuffer(val)) ? val : [val];
-                nrf.execCommand(['W_REGISTER', reg], buf, cb);
+                nrf.execCommand(['W_REGISTER', reg], buf, cb, NEST);
             } else nrf.execCommand(['R_REGISTER', reg], 1, function (e,d) {
                 if (e) return cb(e);
                 var val = d[0],
@@ -134,21 +150,10 @@ exports.connect = function (spi,ce,irq) {
                     cb.apply(this, arguments);
                 });
                 else cb(null);  // don't bother writing if value hasn't changed (unless status, which clears bits)
-            });
+            }, NEST);
         }
         forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, cb);
-    };
-    
-    nrf.setCE = function (state, block) {
-        if (typeof state === 'string') ce.mode(state);
-        else ce.value(state);
-        if (nrf._debug) console.log("Set CE "+state+".");
-        if (block) nrf.blockMicroseconds(nrf._T[block]);       // (assume ce changed TX/RX mode)
-    };
-    nrf.pulseCE = function (block) {
-        nrf.setCE(true,'hce');
-        nrf.setCE(false,block);
-    };
+    }, (_n === NEST)); };
     
     // ✓ low level interface (execCommand, getStates, setStates, pulseCE, 'interrupt')
     // ✓ mid level interface (channel, dataRate, power, crcBytes, autoRetransmit{count,delay})
@@ -156,7 +161,6 @@ exports.connect = function (spi,ce,irq) {
     // ✓ high level PTX (addr)
     // - test!
     // - document
-    
     
     nrf.powerUp = function (val, cb) {
         if (typeof val === 'function' || typeof val === 'undefined') {
@@ -326,7 +330,7 @@ exports.connect = function (spi,ce,irq) {
             states = _m.REGISTER_DEFAULTS;
         }
         nrf.setCE('low','stby2a');
-        q(1)
+        async(1)
             .defer(nrf.execCommand, 'FLUSH_TX')
             .defer(nrf.execCommand, 'FLUSH_RX')
             .defer(nrf.setStates, states)
