@@ -74,33 +74,8 @@ exports.connect = function (spi,ce,irq) {
         });
     };   
     
-    function registersForMnemonics(list) {
-        var registersNeeded = Object.create(null);
-        list.forEach(function (mnem) {
-            var _r = _m.REGISTER_MAP[mnem];
-            if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
-            if (_r.length === 1) _r.push(0,8);
-            
-            var reg = _r[0],
-                howManyBits = _r[2] || 1,
-                iq = registersNeeded[reg] || (registersNeeded[reg] = {arr:[]});
-            iq.len = (howManyBits / 8 >> 0) || 1;
-            if (howManyBits < 8) iq.arr.push(mnem);
-            else iq.solo = mnem;
-        });
-        return registersNeeded;
-    }
-    
-    function maskForMnemonic(mnem) {
-        var _r = _m.REGISTER_MAP[mnem],
-            howManyBits = _r[2] || 1,
-            rightmostBit = _r[1],
-            mask = 0xFF >> (8 - howManyBits) << rightmostBit;
-        return {mask:mask, rightmostBit:rightmostBit};
-    }
-    
     nrf.getStates = function (list, cb) {
-        var registersNeeded = registersForMnemonics(list),
+        var registersNeeded = _m.registersForMnemonics(list),
             states = Object.create(null);
         function processInquiryForRegister(reg, cb) {
             // TODO: execCommand always reads register 0x07 but we're not optimizing for that
@@ -110,7 +85,7 @@ exports.connect = function (spi,ce,irq) {
             nrf.execCommand(['R_REGISTER',reg], iq.len, function (e,d) {
                 if (e) return cb(e);
                 iq.arr.forEach(function (mnem) {
-                    var m = maskForMnemonic(mnem);
+                    var m = _m.maskForMnemonic(mnem);
                     states[mnem] = (d[0] & m.mask) >> m.rightmostBit;
                 });
                 if (iq.solo) states[iq.solo] = d;
@@ -127,7 +102,7 @@ exports.connect = function (spi,ce,irq) {
     nrf.setStates = function (vals, cb) {
         if (nrf._debug) console.log('setStates', vals);
         if (!cb) cb = _nop;
-        var registersNeeded = registersForMnemonics(Object.keys(vals));
+        var registersNeeded = _m.registersForMnemonics(Object.keys(vals));
         function processInquiryForRegister(reg, cb) {
             var iq = registersNeeded[reg];
             reg = +reg;     // was string key, now convert back to number
@@ -143,7 +118,7 @@ exports.connect = function (spi,ce,irq) {
                     settlingNeeded = 0;
                 if (iq.solo) val = vals[iq.solo];  // TODO: refactor so as not to fetch in the first place!
                 iq.arr.forEach(function (mnem) {
-                    var m = maskForMnemonic(mnem);
+                    var m = _m.maskForMnemonic(mnem);
                     if (mnem === 'PWR_UP') {
                         var rising = !(d[0] & m.mask) && vals[mnem];
                         if (rising) settlingNeeded = Math.max(settlingNeeded, nrf._T.pd2stby);
