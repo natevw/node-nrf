@@ -20,11 +20,12 @@ function RawTransceiver(hw) {
   this.blockMicroseconds = hw.blockMicroseconds || RawTransceiver.blockMicroseconds;
   
   this._q = fifo();
-  this._SERIAL_ = function (cb) {
+  this._SERIAL_ = function (cb, fn) {
     var args = Array.prototype.slice.call(arguments);
-    if (!cb) args[0] = function _nop() {};
+    args[0] = cb || function _nop() {};
+    args[1] = fn.bind(this);
     return this._q.TRANSACTION_WRAPPER.apply(this, args);
-  }
+  };
   this._NESTED_ = Object.create(null);     // signal value
 }
 
