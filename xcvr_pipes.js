@@ -85,6 +85,9 @@ PxX.prototype._tx = function (data, cb, _n) { cb = this._SERIAL_(cb, function ()
     }
   }
   var self = this;
+  if (self._opts.reversePayloads) {
+    Array.prototype.reverse.call(data);
+  }
   self._xcvr.setStates(s, function (e) {     // (± fine to call with no keys)
     if (e) return cb(e);
     var sendOpts = _extend({}, self._sendOpts);
@@ -102,6 +105,9 @@ PxX.prototype._tx = function (data, cb, _n) { cb = this._SERIAL_(cb, function ()
       }
       self._xcvr.setStates(s, cb);
     });
+    if (self._opts.reversePayloads && self._opts.reversePayloads !== 'leave') {
+      Array.prototype.reverse.call(data);     // put back data the way caller had it
+    }
     if (!rxPipes.length) self._xcvr._prevSender = self;    // we might avoid setting state next time
   });
 }, (_n === this._NESTED_)); };
@@ -113,7 +119,10 @@ PxX.prototype._rx = function (d) {
   var self = this;
   self._xcvr.readPayload({width:self._size}, function (e,d) {
     if (e) self.emit('error', e);
-    else self._wantsRead = self.push(d);
+    else {
+      if (self._opts.reversePayloads) Array.prototype.reverse.call(d);
+      self._wantsRead = self.push(d);
+    }
     self._xcvr._checkStatus(false);         // see footnote c, p.63
   });
 };
