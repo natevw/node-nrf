@@ -136,3 +136,28 @@ exports.TIMING = {
 };
 
 exports.TX_POWER = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];
+
+exports.registersForMnemonics = function (list) {
+    var registersNeeded = Object.create(null);
+    list.forEach(function (mnem) {
+        var _r = _m.REGISTER_MAP[mnem];
+        if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
+        if (_r.length === 1) _r.push(0,8);
+        
+        var reg = _r[0],
+            howManyBits = _r[2] || 1,
+            iq = registersNeeded[reg] || (registersNeeded[reg] = {arr:[]});
+        iq.len = (howManyBits / 8 >> 0) || 1;
+        if (howManyBits < 8) iq.arr.push(mnem);
+        else iq.solo = mnem;
+    });
+    return registersNeeded;
+};
+    
+exports.maskForMnemonic = function (mnem) {
+    var _r = _m.REGISTER_MAP[mnem],
+        howManyBits = _r[2] || 1,
+        rightmostBit = _r[1],
+        mask = 0xFF >> (8 - howManyBits) << rightmostBit;
+    return {mask:mask, rightmostBit:rightmostBit};
+}
