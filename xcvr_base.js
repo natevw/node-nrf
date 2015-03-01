@@ -72,19 +72,21 @@ cb = this._SERIAL_(cb, function () {
   
   var writeBuf,
       readLen = 0;
+  // NOTE: all of these write cmdByte *last*…
   if (Buffer.isBuffer(data)) {
     writeBuf = Buffer(data.length+1);
-    writeBuf[0] = cmdByte;
-    Array.prototype.reverse.call(data);     // data is LSByte to MSByte, see p.50
-    data.copy(writeBuf,1);
-    Array.prototype.reverse.call(data);     // leave data how caller had.
+    writeBuf[data.length] = cmdByte;
+    data.copy(writeBuf,0);
   } else if (Array.isArray(data)) {
-    data.reverse();
-    writeBuf = Buffer([cmdByte].concat(data));
-    data.reverse();
+    data.push(cmdByte);
+    writeBuf = Buffer(data);
+    data.pop();
   } else {
     writeBuf = Buffer([cmdByte]);
     readLen = data;
+  }
+  if (writeBuf.length > 1) {
+    Array.prototype.reverse.call(writeBuf);   // …so this can handle "LSByte to MSByte" order, datasheet p.50/51
   }
   
   this._hw.spi.transfer(writeBuf, readLen && readLen+1, function (e,d) {
