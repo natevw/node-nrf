@@ -1,6 +1,6 @@
 {
   "name": "nrf",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "nRF24L01 driver library",
   "main": "index.js",
   "scripts": {
@@ -26,7 +26,7 @@
   "dependencies": {
     "fifolock": "^1.0.0",
     "pi-pins": "^1.0.0",
-    "pi-spi": "~0.8.1",
+    "pi-spi": "^1.0.0",
     "queue-async": "~1.0.4"
   }
 }
