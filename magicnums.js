@@ -140,7 +140,7 @@ exports.TX_POWER = ['PA_MIN', 'PA_LOW', 'PA_HIGH', 'PA_MAX'];
 exports.registersForMnemonics = function (list) {
     var registersNeeded = Object.create(null);
     list.forEach(function (mnem) {
-        var _r = _m.REGISTER_MAP[mnem];
+        var _r = exports.REGISTER_MAP[mnem];
         if (!_r) return console.warn("Skipping uknown mnemonic '"+mnem+"'!");
         if (_r.length === 1) _r.push(0,8);
         
@@ -155,7 +155,7 @@ exports.registersForMnemonics = function (list) {
 };
     
 exports.maskForMnemonic = function (mnem) {
-    var _r = _m.REGISTER_MAP[mnem],
+    var _r = exports.REGISTER_MAP[mnem],
         howManyBits = _r[2] || 1,
         rightmostBit = _r[1],
         mask = 0xFF >> (8 - howManyBits) << rightmostBit;
