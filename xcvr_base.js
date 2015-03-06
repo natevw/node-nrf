@@ -94,7 +94,7 @@ cb = this._SERIAL_(cb, function () {
       if (e) cb(e);
       else cb(null, d && Array.prototype.reverse.call(d.slice(1)));
   });
-}, (_n === this._NESTED_ED_)); };
+}, (_n === this._NESTED_)); };
 
 RawTransceiver.prototype.getStates = function (list, cb, _n) { cb = this._SERIAL_(cb, function () {
   var registersNeeded = _m.registersForMnemonics(list),
@@ -113,13 +113,13 @@ RawTransceiver.prototype.getStates = function (list, cb, _n) { cb = this._SERIAL
       });
       if (iq.solo) states[iq.solo] = d;
       cb();
-    }, self._NESTED_ED_);
+    }, self._NESTED_);
   }
   forEachWithCB.call(Object.keys(registersNeeded), processInquiryForRegister, function (e) {
     DEBUG('gotStates', states, e);
     cb(e,states);
   });
-}, (_n === this._NESTED_ED_)); };
+}, (_n === this._NESTED_)); };
 
 var _statusReg = _m.REGISTER_MAP['STATUS'][0];
 
@@ -135,7 +135,7 @@ RawTransceiver.prototype.setStates = function (vals, cb, _n) { cb = this._SERIAL
     if (!iq.arr.length || iq.arr[0]==='RF_CH' || iq.arr[0].indexOf('RX_PW_P')===0) {
       var val = vals[iq.solo || iq.arr[0]],
           buf = (Buffer.isBuffer(val)) ? val : [val];
-      self.execCommand(['W_REGISTER', reg], buf, cb, self._NESTED_ED_);
+      self.execCommand(['W_REGISTER', reg], buf, cb, self._NESTED_);
     } else self.execCommand(['R_REGISTER', reg], 1, function (e,d) {
       if (e) return cb(e);
       var val = d[0],
