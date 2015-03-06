@@ -21,7 +21,7 @@ function PxX(xcvr, pipe, addr, opts) {           // base for PTX/PRX
     if (addr.length > 1) s['AW'] = addr.length - 2;
     if (opts._primRX) {
       s['PRIM_RX'] = true;
-      if (pipe === 0) rxP0 = this;
+      if (pipe === 0) this._xcvr._rxP0 = this;
       if (opts.autoAck) this._xcvr._prevSender = null;         // make sure TX doesn't skip setup
     }
     if (opts._enableRX) {
@@ -55,33 +55,33 @@ function PxX(xcvr, pipe, addr, opts) {           // base for PTX/PRX
 
 util.inherits(PxX, stream.Duplex);
 
-PxX.prototype._write = function (buff, _enc, cb) {
-  this._tx(data, cb);
+PxX.prototype._write = function (buf, _enc, cb) {
+  this._tx(buf, cb);
 };
 
-PxX.prototype._tx = function (data, cb, _n) { cb = this._SERIAL_(cb, function () {
+PxX.prototype._tx = function (data, cb, _n) { cb = this._xcvr._SERIAL_.call(this, cb, function () {
   // see p.75 of datasheet for reference here
   var s = {};
   if (this._sendOpts.asAckTo) {
     // no config is needed
   } else if (this._xcvr._prevSender === this) {
-    if (rxPipes.length) {
+    if (this._xcvr._rxPipes.length) {
       this._xcvr.setCE('low');       // this or PWR_UP:0 are the only ways out of RX mode acc to p.22
       s['PRIM_RX'] = false;
     }
   } else {
     s['TX_ADDR'] = this._addr;
-    if (rxPipes.length) {
+    if (this._xcvr._rxPipes.length) {
       this._xcvr.setCE('low');
       s['PRIM_RX'] = false;
     }
     if (this._sendOpts.ack) {
-      if (rxP0) rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
+      if (this._xcvr._rxP0) this._xcvr._rxP0._pipe = -1;          // HACK: avoid the pipe-0 PRX from reading our ack payload
       s['RX_ADDR_P0'] = this._addr;
-      if ('retryCount' in this.opts) s['ARC'] = this.opts.retryCount;
-      if ('retryDelay' in this.opts) s['ARD'] = this.opts.retryDelay/250 - 1;
+      if ('retryCount' in this._opts) s['ARC'] = this._opts.retryCount;
+      if ('retryDelay' in this._opts) s['ARD'] = this._opts.retryDelay/250 - 1;
       // TODO: shouldn't this be overrideable regardless of _sendOpts.ack??
-      if ('txPower' in this.opts) s['RF_PWR'] = _m.TX_POWER.indexOf(this.opts.txPower);
+      if ('txPower' in this._opts) s['RF_PWR'] = _m.TX_POWER.indexOf(this._opts.txPower);
     }
   }
   var self = this;
@@ -91,26 +91,26 @@ PxX.prototype._tx = function (data, cb, _n) { cb = this._SERIAL_(cb, function ()
   self._xcvr.setStates(s, function (e) {     // (± fine to call with no keys)
     if (e) return cb(e);
     var sendOpts = _extend({}, self._sendOpts);
-    //if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
+    //if (self._xcvr._rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
     self._xcvr.sendPayload(data, sendOpts, function (e) {
       if (e) return cb(e);
       var s = {};                 // NOTE: if another TX is waiting, switching to RX is a waste…
-      if (rxPipes.length && !self._sendOpts.asAckTo) {
+      if (self._xcvr._rxPipes.length && !self._sendOpts.asAckTo) {
         self._xcvr.setCE('high');
         s['PRIM_RX'] = true;
       }
-      if (self._sendOpts.ack && rxP0) {
-        s['RX_ADDR_P0'] = rxP0._addr;
-        rxP0._pipe = 0;
+      if (self._sendOpts.ack && self._xcvr._rxP0) {
+        s['RX_ADDR_P0'] = self._xcvr._rxP0._addr;
+        self._xcvr._rxP0._pipe = 0;
       }
       self._xcvr.setStates(s, cb);
     });
     if (self._opts.reversePayloads && self._opts.reversePayloads !== 'leave') {
       Array.prototype.reverse.call(data);     // put back data the way caller had it
     }
-    if (!rxPipes.length) self._xcvr._prevSender = self;    // we might avoid setting state next time
+    if (!self._xcvr._rxPipes.length) self._xcvr._prevSender = self;    // we might avoid setting state next time
   });
-}, (_n === this._NESTED_)); };
+}, (_n === this._xcvr._NESTED_)); };
 
 PxX.prototype._rx = function (d) {
   if (d.RX_P_NO !== this._pipe) return;
@@ -133,14 +133,14 @@ PxX.prototype._read = function () {
 };
 
 PxX.prototype.close = function () {
-  if (rxP0 === this) rxP0 = null;
+  if (this._xcvr._rxP0 === this) this._xcvr._rxP0 = null;
   // TODO: also update CE and RX_EN registers accordingly
   this.push(null);
   this.emit('close');
 };
 
 
-function PTX(xcvr, addr,opts) {
+function PTX(xcvr, addr, opts) {
   opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
   opts._enableRX = (opts.autoAck || opts.ackPayloads);
   PxX.call(this, xcvr, 0, addr, opts);

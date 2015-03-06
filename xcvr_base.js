@@ -19,12 +19,12 @@ function RawTransceiver(hw) {
   this._T = _extend({}, _m.TIMING, {pd2stby:4500});        // may need local override of pd2stby
   this.blockMicroseconds = hw.blockMicroseconds || RawTransceiver.blockMicroseconds;
   
-  this._q = fifo();
+  var _q = fifo();
   this._SERIAL_ = function (cb, fn) {
     var args = Array.prototype.slice.call(arguments);
     args[0] = cb || function _nop() {};
     args[1] = fn.bind(this);
-    return this._q.TRANSACTION_WRAPPER.apply(this, args);
+    return _q.TRANSACTION_WRAPPER.apply(this, args);
   };
   this._NESTED_ = Object.create(null);     // signal value
 }
