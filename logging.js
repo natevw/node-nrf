@@ -6,7 +6,7 @@ var levels = ['error', 'warn', 'info', 'debug'];
 exports.level = 'info';
 
 exports.log = function (level, msg) {
-  if (levels.indexOf(level) < levels.indexOf(exports.level)) return;
+  if (levels.indexOf(level) > levels.indexOf(exports.level)) return;
   else debuglog.apply(null, Array.prototype.slice.call(arguments, 1));
 };
 
