@@ -100,6 +100,11 @@ The C++ [RF24 library for RasPi](https://github.com/stanleyseow/RF24/) toggles t
     sudo modprobe -r spi_bcm2708
     sudo modprobe spi_bcm2708
 
+or
+
+    sudo modprobe -r spi_bcm2835
+    sudo modprobe spi_bcm2835
+
 See [this comment](https://github.com/natevw/node-nrf/issues/1#issuecomment-32395546) for a bit more discussion.
 
 ### TBD: gather more advice (or link to a wiki page?)
