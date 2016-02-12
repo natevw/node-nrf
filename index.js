@@ -396,7 +396,7 @@ exports.connect = function (spi,ce,irq) {
             console.warn("Recommend use with IRQ pin, fallback handling is suboptimal.");
             irqListener = setInterval(function () {       // TODO: clear interval when there are no listeners?
                 if (nrf.listeners('interrupt').length) nrf._checkStatus(false);
-            }, 0);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
+            }, 4);  // (minimum 4ms is a looong time if hoping to quickly stream data!)
         }
         irqOn = true;
     };
