@@ -558,7 +558,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             var sendOpts = _extend({},this._sendOpts);
-            //if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
+            if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
             nrf.sendPayload(data, sendOpts, function (e) {
                 if (e) return cb(e);
                 var s = {};                 // NOTE: if another TX is waiting, switching to RX is a waste…
