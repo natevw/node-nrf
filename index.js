@@ -339,21 +339,35 @@ exports.connect = function (spi,ce,irq) {
                 nrf.pulseCE('pece2csn');
                 // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
                 // Do not register the listener when writing to ack payload. No TX_DS in next frame.
+                nrf.once('interrupt', irqHandler);
+               
+                
+            } else {
+                // Incoming RX_DS then (TX_DS or MAX_RT)
                 nrf.once('interrupt', function (d) {
-                    if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
-                        finish(new Error("Packet timeout, transmit queue flushed."));
-                    });
-                    else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
-                    else finish();
-                    
-                    function finish(e) {        // clear our interrupts, leaving RX_DR
-                        nrf.setStates({TX_DS:true,MAX_RT:true,RX_DR:false}, function () {
-                            cb(e||null);
-                        });
+                    if(d.RX_DR) {
+                        //desired
+                        nrf.once('interrupt', irqHandler);
+                    } else {
+                        console.warn("Unexpected IRQ during transmit phase!");
                     }
-                });
+               });
             }
         });  
+
+        function irqHandler(d) {
+            if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
+                finish(new Error("Packet timeout, transmit queue flushed."));
+            });
+            else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
+            else finish();
+            
+            function finish(e) {        // clear our interrupts, leaving RX_DR
+                nrf.setStates({TX_DS:true,MAX_RT:true,RX_DR:false}, function () {
+                    cb(e||null);
+                });
+            }
+        }
     };
     
     nrf.reset = function (states, cb) {
