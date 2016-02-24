@@ -335,21 +335,24 @@ exports.connect = function (spi,ce,irq) {
         }
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
-            if (!opts.ceHigh) nrf.pulseCE('pece2csn');
-            // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
-            nrf.once('interrupt', function (d) {
-                if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
-                    finish(new Error("Packet timeout, transmit queue flushed."));
-                });
-                else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
-                else finish();
-                
-                function finish(e) {        // clear our interrupts, leaving RX_DR
-                    nrf.setStates({TX_DS:true,MAX_RT:true,RX_DR:false}, function () {
-                        cb(e||null);
+            if (!opts.ceHigh) { 
+                nrf.pulseCE('pece2csn');
+                // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
+                // Do not register the listener when writing to ack payload. No TX_DS in next frame.
+                nrf.once('interrupt', function (d) {
+                    if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
+                        finish(new Error("Packet timeout, transmit queue flushed."));
                     });
-                }
-            });
+                    else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
+                    else finish();
+                    
+                    function finish(e) {        // clear our interrupts, leaving RX_DR
+                        nrf.setStates({TX_DS:true,MAX_RT:true,RX_DR:false}, function () {
+                            cb(e||null);
+                        });
+                    }
+                });
+            }
         });  
     };
     
