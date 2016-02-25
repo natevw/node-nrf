@@ -626,7 +626,7 @@ exports.connect = function (spi,ce,irq) {
             
             setTimeout (function(){
                 if(!timeout) {
-                    this.emit('timeout');
+                    self.emit('timeout');
                     throw new Error("timeout");
                 }
             },1000);    // TODO: remove hard code
@@ -646,7 +646,7 @@ exports.connect = function (spi,ce,irq) {
             
             setTimeout (function(){
                 if(!timeout) {
-                    this.emit('timeout');
+                    self.emit('timeout');
                     throw new Error("timeout");
                 }
             },1000);    // TODO: remove hard code
