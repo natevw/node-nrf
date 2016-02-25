@@ -360,6 +360,7 @@ exports.connect = function (spi,ce,irq) {
                 finish(new Error("Packet timeout, transmit queue flushed."));
             });
             else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
+            else if (d.TX_DS) this.emit('transmitted');
             else finish();
             
             function finish(e) {        // clear our interrupts, leaving RX_DR
