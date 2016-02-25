@@ -613,6 +613,45 @@ exports.connect = function (spi,ce,irq) {
         this.push(null);
         this.emit('close');
     };
+    PxX.prototype.willWriteAck = function (buffer) {
+        var self = this;
+        return new Promise (function (resolve, reject) {
+            self.write(buffer);
+            var timeout = false;
+            
+            self.on("data", function(d) {
+                timeout = true;
+                resolve (d);
+            });
+            
+            setTimeout (function(){
+                if(!timeout) {
+                    this.emit('timeout');
+                    throw new Error("timeout");
+                }
+            },1000);    // TODO: remove hard code
+        });
+    }
+    PxX.prototype.willWrite = function (buffer) {
+        // Introducing Promise will require node > 0.11
+        var self = this;
+        return new Promise (function (resolve, reject) {
+            self.write(buffer);
+            var timeout = false;
+            
+            self.on("transmitted", function() {
+                timeout = true;
+                resolve ();
+            });
+            
+            setTimeout (function(){
+                if(!timeout) {
+                    this.emit('timeout');
+                    throw new Error("timeout");
+                }
+            },1000);    // TODO: remove hard code
+        });
+    }
     
     function PTX(addr,opts) {
         opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
