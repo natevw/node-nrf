@@ -625,7 +625,7 @@ exports.connect = function (spi,ce,irq) {
                     }
                 },1000);    // TODO: remove hard code;
             
-                self.on("data", function(d) {
+                self.once("data", function(d) {
                     clearTimeout(timeout);
                     resolve (d);
                 });
@@ -645,7 +645,7 @@ exports.connect = function (spi,ce,irq) {
                     }
                 },1000);    // TODO: remove hard code;
                 
-                self.on("transmitted", function() {
+                self.once("transmitted", function() {
                     clearTimeout(timeout);
                     resolve ();
                 });
