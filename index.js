@@ -617,19 +617,19 @@ exports.connect = function (spi,ce,irq) {
         var self = this;
         return new Promise (function (resolve, reject) {
             self.write(buffer);
-            var timeout = false;
-            
-            self.on("data", function(d) {
-                timeout = true;
-                resolve (d);
-            });
-            
-            setTimeout (function(){
+            var timeout = setTimeout (function(){
                 if(!timeout) {
                     self.emit('timeout');
                     throw new Error("timeout");
                 }
-            },1000);    // TODO: remove hard code
+            },1000);    // TODO: remove hard code;
+            
+            self.on("data", function(d) {
+                clearTimeout(timeout);
+                resolve (d);
+            });
+            
+
         });
     }
     PxX.prototype.willWrite = function (buffer) {
@@ -637,19 +637,17 @@ exports.connect = function (spi,ce,irq) {
         var self = this;
         return new Promise (function (resolve, reject) {
             self.write(buffer);
-            var timeout = false;
-            
-            self.on("transmitted", function() {
-                timeout = true;
-                resolve ();
-            });
-            
-            setTimeout (function(){
+            var timeout = setTimeout (function(){
                 if(!timeout) {
                     self.emit('timeout');
                     throw new Error("timeout");
                 }
-            },1000);    // TODO: remove hard code
+            },1000);    // TODO: remove hard code;
+            
+            self.on("transmitted", function() {
+                clearTimeout(timeout);
+                resolve ();
+            });
         });
     }
     
