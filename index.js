@@ -615,42 +615,38 @@ exports.connect = function (spi,ce,irq) {
     };
     PxX.prototype.willWriteAck = function (buffer) {
         var self = this;
-        return function (d) {
-            return new Promise (function (resolve, reject) {
-                self.write(buffer);
-                var timeout = setTimeout (function(){
-                    if(!timeout) {
-                        self.emit('timeout');
-                        throw new Error("timeout");
-                    }
-                },1000);    // TODO: remove hard code;
-            
-                self.once("data", function(d) {
-                    clearTimeout(timeout);
-                    resolve (d);
-                });
+        return new Promise (function (resolve, reject) {
+            self.write(buffer);
+            var timeout = setTimeout (function(){
+                if(!timeout) {
+                    self.emit('timeout');
+                    throw new Error("timeout");
+                }
+            },1000);    // TODO: remove hard code;
+        
+            self.once("data", function(d) {
+                clearTimeout(timeout);
+                resolve (d);
             });
-        }
+        });
     }
     PxX.prototype.willWrite = function (buffer) {
         // Introducing Promise will require node > 0.11
         var self = this;
-        return function (d) {
-            return new Promise (function (resolve, reject) {
-                self.write(buffer);
-                var timeout = setTimeout (function(){
-                    if(!timeout) {
-                        self.emit('timeout');
-                        throw new Error("timeout");
-                    }
-                },1000);    // TODO: remove hard code;
-                
-                self.once("transmitted", function() {
-                    clearTimeout(timeout);
-                    resolve ();
-                });
+        return new Promise (function (resolve, reject) {
+            self.write(buffer);
+            var timeout = setTimeout (function(){
+                if(!timeout) {
+                    self.emit('timeout');
+                    throw new Error("timeout");
+                }
+            },1000);    // TODO: remove hard code;
+            
+            self.once("transmitted", function() {
+                clearTimeout(timeout);
+                resolve ();
             });
-        }
+        });
     }
     
     function PTX(addr,opts) {
