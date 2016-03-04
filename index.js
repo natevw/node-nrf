@@ -630,22 +630,40 @@ exports.connect = function (spi,ce,irq) {
             });
         });
     }
-    PxX.prototype.willWrite = function (buffer) {
+    PxX.prototype.willWrite = function (buffer, options) {
         // Introducing Promise will require node > 0.11
         var self = this;
+        var defaultOptions = {
+            maxRetry: -1,
+            retryDelay: 0
+        };
+        var retryCount = 0;
+        options = Object.assign(defaultOptions, options);
+        
         return new Promise (function (resolve, reject) {
-            self.write(buffer);
-            var timeout = setTimeout (function(){
-                if(!timeout) {
-                    self.emit('timeout');
-                    throw new Error("timeout");
+            function _sender() {
+                self.write(buffer);
+                self.once("transmitted", onSent);
+                function onSent() {
+                    self.removeListener('transmitted', onSent);
+                    self.removeListener('error', onErr);
+                    resolve ();
                 }
-            },1000);    // TODO: remove hard code;
-            
-            self.once("transmitted", function() {
-                clearTimeout(timeout);
-                resolve ();
-            });
+                
+                self.once("error", onError);
+                function onError() {
+                    retryCount ++;
+                    if (retryCount > options.maxRetry && options.maxRetry > 0) {
+                        self.emit('fail', {});
+                        reject();
+                    } else {
+                        self.emit('failOnce', {count: retryCount});
+                        self.removeListener('transmitted', onSent);
+                        self.removeListener('error', onErr);
+                        setTimeout(_sender,options.retryDelay);
+                    }
+                }
+            }
         });
     }
     
