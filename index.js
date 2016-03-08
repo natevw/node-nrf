@@ -335,22 +335,40 @@ exports.connect = function (spi,ce,irq) {
         }
         nrf.execCommand(cmd, data, function (e) {
             if (e) return cb(e);
-            if (!opts.ceHigh) nrf.pulseCE('pece2csn');
-            // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
-            nrf.once('interrupt', function (d) {
-                if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
-                    finish(new Error("Packet timeout, transmit queue flushed."));
-                });
-                else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
-                else finish();
+            if (!opts.ceHigh) { 
+                nrf.pulseCE('pece2csn');
+                // TODO: if _sendOpts.asAckTo we won't get MAX_RT interrupt — how to prevent a blocked TX FIFO? (see p.33)
+                // Do not register the listener when writing to ack payload. No TX_DS in next frame.
+                nrf.once('interrupt', irqHandler);
+               
                 
-                function finish(e) {        // clear our interrupts, leaving RX_DR
-                    nrf.setStates({TX_DS:true,MAX_RT:true,RX_DR:false}, function () {
-                        cb(e||null);
-                    });
-                }
-            });
+            } else {
+                // Incoming RX_DS then (TX_DS or MAX_RT)
+                nrf.once('interrupt', function (d) {
+                    if(d.RX_DR) {
+                        //desired
+                        nrf.once('interrupt', irqHandler);
+                    } else {
+                        console.warn("Unexpected IRQ during transmit phase!");
+                    }
+               });
+            }
         });  
+
+        function irqHandler(d) {
+            if (d.MAX_RT) nrf.execCommand('FLUSH_TX', function (e) {    // see p.56
+                finish(new Error("Packet timeout, transmit queue flushed."));
+            });
+            else if (!d.TX_DS) console.warn("Unexpected IRQ during transmit phase!");
+            else finish();
+            
+            function finish(e) {        // clear our interrupts, leaving RX_DR
+                nrf.setStates({TX_DS:true,MAX_RT:true,RX_DR:false}, function () {
+                    if (d.TX_DS) nrf._prevSender.emit('transmitted');
+                    cb(e||null);
+                });
+            }
+        }
     };
     
     nrf.reset = function (states, cb) {
@@ -558,7 +576,7 @@ exports.connect = function (spi,ce,irq) {
         nrf.setStates(s, function (e) {     // (± fine to call with no keys)
             if (e) return cb(e);
             var sendOpts = _extend({},this._sendOpts);
-            //if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
+            if (rxPipes.length) sendOpts.ceHigh = true;        // PRX will already have CE high
             nrf.sendPayload(data, sendOpts, function (e) {
                 if (e) return cb(e);
                 var s = {};                 // NOTE: if another TX is waiting, switching to RX is a waste…
@@ -595,6 +613,59 @@ exports.connect = function (spi,ce,irq) {
         this.push(null);
         this.emit('close');
     };
+    PxX.prototype.willWriteAck = function (buffer) {
+        var self = this;
+        return new Promise (function (resolve, reject) {
+            self.write(buffer);
+            var timeout = setTimeout (function(){
+                if(!timeout) {
+                    self.emit('timeout');
+                    throw new Error("timeout");
+                }
+            },1000);    // TODO: remove hard code;
+        
+            self.once("data", function(d) {
+                clearTimeout(timeout);
+                resolve (d);
+            });
+        });
+    }
+    PxX.prototype.willWrite = function (buffer, options) {
+        // Introducing Promise will require node > 0.11
+        var self = this;
+        var defaultOptions = {
+            maxRetry: -1,
+            retryDelay: 0
+        };
+        var retryCount = 0;
+        options = Object.assign(defaultOptions, options);
+        
+        return new Promise (function (resolve, reject) {
+            function _sender() {
+                self.write(buffer);
+                self.once("transmitted", onSent);
+                function onSent() {
+                    self.removeListener('transmitted', onSent);
+                    self.removeListener('error', onErr);
+                    resolve ();
+                }
+                
+                self.once("error", onError);
+                function onError() {
+                    retryCount ++;
+                    if (retryCount > options.maxRetry && options.maxRetry > 0) {
+                        self.emit('fail', {});
+                        reject();
+                    } else {
+                        self.emit('failOnce', {count: retryCount});
+                        self.removeListener('transmitted', onSent);
+                        self.removeListener('error', onErr);
+                        setTimeout(_sender,options.retryDelay);
+                    }
+                }
+            }
+        });
+    }
     
     function PTX(addr,opts) {
         opts = _extend({size:'auto',autoAck:true,ackPayloads:false}, opts);
