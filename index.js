@@ -250,7 +250,7 @@ exports.connect = function (spi,ce,irq) {
     nrf.crcBytes = function (val, cb) {
         if (typeof val === 'function' || typeof val === 'undefined') {
             cb = val || _nop;
-            nrf.getStates(['EN_CRC, CRCO'], function (e,d) {
+            nrf.getStates(['EN_CRC', 'CRCO'], function (e,d) {
                 if (e) return cb(e);
                 else if (!d.EN_CRC) cb(null, 0);
                 else if (d.CRCO) cb(null, 2);
