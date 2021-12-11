@@ -623,7 +623,7 @@ exports.connect = function (spi,ce,irq) {
     nrf.printDetails = function (cb) {        // for debugging, mimic e.g. https://github.com/stanleyseow/RF24/blob/master/librf24-rpi/librf24/RF24.cpp#L318
         if (!cb) cb = _nop;
         console.log("SPI device:\t",_spi);
-        //console.log("SPI speed:\t",'?');
+        console.log("SPI speed:\t",spi.clockSpeed());
         console.log("CE GPIO:\t",_ce);
         console.log("IRQ GPIO:\t",_irq);
         nrf.getStates(['STATUS','RX_DR','TX_DS','MAX_RT','RX_P_NO','TX_FULL'], function (e,d) {
